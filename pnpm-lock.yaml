@@ -7,6 +7,7 @@ importers:
       '@babel/types': 7.20.7
       '@types/node': 18.11.18
       esbuild: 0.16.13
+      picocolors: ^1.0.0
       resolve: 1.22.1
       rimraf: 3.0.2
       tsx: 3.12.1
@@ -15,6 +16,7 @@ importers:
       '@babel/types': 7.20.7
       '@types/node': 18.11.18
       esbuild: 0.16.13
+      picocolors: 1.0.0
       resolve: 1.22.1
       rimraf: 3.0.2
       tsx: 3.12.1
@@ -600,6 +602,10 @@ packages:
 
   /path-parse/1.0.7:
     resolution: {integrity: sha512-LDJzPVEEEPR+y48z93A0Ed0yXb8pAByGWo/k5YYdYgpY2/2EsOsksJrq7lOHxryrVOn1ejG6oAp8ahvOIQD8sw==}
+
+  /picocolors/1.0.0:
+    resolution: {integrity: sha512-1fygroTLlHu66zi26VoTDv8yRgm0Fccecssto+MhsZ0D/DGW2sm8E8AjW7NU5VVTRt5GxbeZ5qBuJr+HyLYkjQ==}
+    dev: true
 
   /resolve/1.22.1:
     resolution: {integrity: sha512-nBpuuYuY5jFsli/JIs1oldw6fOQCBioohqWZg/2hiaOybXOft4lonv85uDOKXdf8rhyK159cxU5cDcK/NKk8zw==}
