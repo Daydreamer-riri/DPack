@@ -5,6 +5,7 @@ importers:
   .:
     specifiers:
       '@babel/types': 7.20.7
+      '@types/node': 18.11.18
       esbuild: 0.16.13
       resolve: 1.22.1
       rimraf: 3.0.2
@@ -12,6 +13,7 @@ importers:
       typescript: 4.9.4
     devDependencies:
       '@babel/types': 7.20.7
+      '@types/node': 18.11.18
       esbuild: 0.16.13
       resolve: 1.22.1
       rimraf: 3.0.2
@@ -264,6 +266,10 @@ packages:
     os: [win32]
     requiresBuild: true
     optional: true
+
+  /@types/node/18.11.18:
+    resolution: {integrity: sha512-DHQpWGjyQKSHj3ebjFI/wRKcqQcdR+MoFBygntYOZytCqNfkd2ZC4ARDJ2DQqhjH5p85Nnd3jhUJIXrszFX/JA==}
+    dev: true
 
   /balanced-match/1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}

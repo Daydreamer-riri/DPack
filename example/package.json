@@ -1,0 +1,9 @@
+{
+  "name": "@dpack/dpack-example",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {}
+}
