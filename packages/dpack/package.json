@@ -1,0 +1,18 @@
+{
+  "name": "dpace",
+  "version": "0.0.1",
+  "type": "module",
+  "bin": {
+    "dpack": "bin/dpack.js"
+  },
+  "scripts": {
+    "dev": "rimraf dist"
+  },
+  "dependencies": {
+    "esbuild": "0.16.13",
+    "resolve": "1.22.1"
+  },
+  "devDependencies": {
+    "types": "link:./types"
+  }
+}

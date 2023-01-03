@@ -1,0 +1,17 @@
+{
+  "name": "@dpack/depack-monorepo",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "preinstall": "npx only-allow pnpm"
+  },
+  "devDependencies": {
+    "@babel/types": "7.20.7",
+    "esbuild": "0.16.13",
+    "resolve": "1.22.1",
+    "rimraf": "3.0.2",
+    "tsx": "3.12.1",
+    "typescript": "4.9.4"
+  },
+  "license": "ISC"
+}
