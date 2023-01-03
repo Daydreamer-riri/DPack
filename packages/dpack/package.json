@@ -1,12 +1,13 @@
 {
-  "name": "dpace",
+  "name": "dpack",
   "version": "0.0.1",
   "type": "module",
   "bin": {
     "dpack": "bin/dpack.js"
   },
   "scripts": {
-    "dev": "rimraf dist"
+    "dev": "rimraf dist",
+    "test-script": "tsx scripts/util.ts"
   },
   "dependencies": {
     "esbuild": "0.16.13",
