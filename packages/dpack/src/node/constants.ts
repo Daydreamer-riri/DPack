@@ -1,0 +1,24 @@
+import { readFileSync } from 'node:fs'
+
+const { version } = JSON.parse(
+  readFileSync(new URL('../../package.json', import.meta.url)).toString(),
+)
+
+export const VERSION = version as string
+
+export const DEFAULT_EXTENSIONS = [
+  '.mjs',
+  '.js',
+  '.mts',
+  '.ts',
+  '.jsx',
+  '.tsx',
+  '.json',
+]
+
+export const CSS_LANGS_RE =
+  /\.(css|less|sass|scss|styl|stylus|pcss|postcss|sss)(?:$|\?)/
+
+export const FS_PREFIX = `/@fs/`
+
+export const VALID_ID_PREFIX = `/@id/`
