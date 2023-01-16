@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "preinstall": "npx only-allow pnpm"
+    "preinstall": "npx only-allow pnpm",
+    "build:dpack": "pnpm --filter dpack run build-bundle"
   },
   "devDependencies": {
     "@babel/types": "7.20.7",
+    "@rollup/plugin-typescript": "^10.0.1",
     "@types/node": "18.11.18",
     "esbuild": "0.16.13",
     "picocolors": "^1.0.0",
