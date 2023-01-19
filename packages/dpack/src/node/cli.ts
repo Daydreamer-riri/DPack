@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import colors from 'picocolors'
 import { VERSION } from './constants'
 import type { LogLevel } from './logger'
+import { ServerOptions } from './server'
 
 const cli = cac('dpack')
 
@@ -52,6 +53,34 @@ export const stopProfiler = (
   })
 }
 
+const filterDuplicateOptions = <T extends object>(options: T) => {
+  for (const [key, value] of Object.entries(options)) {
+    if (Array.isArray(value)) {
+      options[key as keyof T] = value[value.length - 1]
+    }
+  }
+}
+
+function cleanOptions<Options extends GlobalCLIOptions>(
+  options: Options,
+): Omit<Options, keyof GlobalCLIOptions> {
+  const ret = { ...options }
+  delete ret['--']
+  delete ret.c
+  delete ret.config
+  delete ret.base
+  delete ret.l
+  delete ret.logLevel
+  delete ret.clearScreen
+  delete ret.d
+  delete ret.debug
+  delete ret.f
+  delete ret.filter
+  delete ret.m
+  delete ret.mode
+  return ret
+}
+
 cli
   .option('-c, --config <file>', `[string] use specified config file`)
   .option('--base <path>', `[string] public base path (default: /)`)
@@ -60,6 +89,21 @@ cli
   .option('-d, --debug [feat]', `[string | boolean] show debug logs`)
   .option('-f, --filter <filter>', `[string] filter debug logs`)
   .option('-m, --mode <mode>', `[string] set env mode`)
+
+// dev
+cli
+  .command('[root]', 'start dev server')
+  .alias('server')
+  .alias('dev')
+  .option('--host [host]', `[string] specify hostname`)
+  .option('--port <port>', `[number] specify port`)
+  .option('--https', `[boolean] use TLS + HTTP/2`)
+  .option('--open [path]', `[boolean | string] open browser on startup`)
+  .option('--cors', `[boolean] enable CORS`)
+  .action(async (root: string, options: ServerOptions & GlobalCLIOptions) => {
+    filterDuplicateOptions(options)
+    const {} = await import('./server')
+  })
 
 cli.help()
 cli.version(VERSION)

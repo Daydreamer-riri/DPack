@@ -16,6 +16,15 @@ export const DEFAULT_EXTENSIONS = [
   '.json',
 ]
 
+export const DEFAULT_CONFIG_FILES = [
+  'vite.config.js',
+  'vite.config.mjs',
+  'vite.config.ts',
+  'vite.config.cjs',
+  'vite.config.mts',
+  'vite.config.cts',
+]
+
 export const CSS_LANGS_RE =
   /\.(css|less|sass|scss|styl|stylus|pcss|postcss|sss)(?:$|\?)/
 

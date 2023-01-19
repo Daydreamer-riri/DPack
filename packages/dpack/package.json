@@ -27,7 +27,12 @@
     "@rollup/plugin-json": "^6.0.0",
     "@rollup/plugin-node-resolve": "15.0.1",
     "@rollup/plugin-typescript": "^10.0.1",
+    "@types/connect": "^3.4.35",
     "cac": "^6.7.14",
+    "connect": "^3.7.0",
+    "debug": "^4.3.4",
+    "dep-types": "link:./src/types",
+    "picomatch": "^2.3.1",
     "types": "link:./types"
   },
   "peerDependencies": {
