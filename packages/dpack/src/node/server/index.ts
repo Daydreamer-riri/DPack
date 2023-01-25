@@ -1,8 +1,13 @@
 import type { Connect } from 'dep-types/connect'
 import type { InlineConfig, ResolvedConfig } from '../config'
-import type { CommonServerOptions } from '../http'
+import {
+  CommonServerOptions,
+  resolveHttpServer,
+  setClientErrorHandler,
+} from '../http'
 import type { HmrOptions } from './hmr'
 import type * as http from 'node:http'
+import chokidar from 'chokidar'
 import type { FSWatcher, WatchOptions } from 'dep-types/chokidar'
 import picomatch from 'picomatch'
 import type { Matcher } from 'picomatch'
@@ -10,6 +15,8 @@ import type { ModuleNode } from './moduleGraph'
 import { ModuleGraph } from './moduleGraph'
 import type { TransformOptions, TransformResult } from './transformRequest'
 import connect from 'connect'
+import { createWebSocketServer } from './ws'
+import path from 'node:path'
 
 export interface ServerOptions extends CommonServerOptions {
   /**
@@ -44,6 +51,11 @@ export interface ServerOptions extends CommonServerOptions {
    * @default true
    */
   preTransformRequests?: boolean
+}
+
+export interface ResolvedServerOptions extends ServerOptions {
+  fs: Required<FileSystemServeOptions>
+  middlewareMode: boolean
 }
 
 export interface FileSystemServeOptions {
@@ -216,12 +228,27 @@ export interface ResolvedServerUrls {
   network: string[]
 }
 
-// export async function createServer(
-//   inlineConfig: InlineConfig = {},
-// ): Promise<DpackDevServer> {
-//   // const config = await resolveConfig
-//   const middlewares = connect() as Connect.Server
-//   const httpServer = middlewares
-//     ? null
-//     : resolveHttpServer(serverConfig, middlewares, httpsOptions)
-// }
+export async function createServer(
+  inlineConfig: InlineConfig = {},
+): Promise<DpackDevServer> {
+  // const config = await resolveConfig
+  // const { middlewareMode } = serverConfig
+  // TODO:
+  const config: any = {}
+  const middlewareMode = false
+  const serverConfig = {}
+  const httpsOptions = {}
+  const root = process.cwd()
+
+  const middlewares = connect() as Connect.Server
+  const httpServer = middlewareMode
+    ? null
+    : await resolveHttpServer(serverConfig, middlewares, httpsOptions)
+  const ws = createWebSocketServer(httpServer, config, httpsOptions)
+
+  if (httpServer) {
+    setClientErrorHandler(httpServer, config.logger)
+  }
+
+  const watcher = chokidar.watch(path.resolve(root)) // TODO:options
+}

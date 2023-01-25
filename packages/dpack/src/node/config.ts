@@ -4,10 +4,10 @@ import { pathToFileURL } from 'node:url'
 import { performance } from 'node:perf_hooks'
 import { createRequire } from 'node:module'
 import colors from 'picocolors'
-import { createLogger, LogLevel } from './logger'
+import { createLogger, Logger, LogLevel } from './logger'
 import type { HookHandler, Plugin } from './plugin'
 import type { ESBuildOptions } from './plugins/esbuild'
-import type { ServerOptions } from './server'
+import type { ResolvedServerOptions, ServerOptions } from './server'
 import { DEFAULT_CONFIG_FILES } from './constants'
 import { isObject, lookupFile } from './utils'
 import { debug } from 'node:console'
@@ -126,6 +126,12 @@ export type ResolvedConfig = Readonly<
     mode: string
     isWorker: boolean
     // TODO: more
+    server: ResolvedServerOptions
+    // build: ResolvedBuildOptions
+    // preview: ResolvedPreviewOptions
+    // ssr: ResolvedSSROptions
+    // assetsInclude: (file: string) => boolean
+    logger: Logger
   } & PluginHookUtils
 >
 

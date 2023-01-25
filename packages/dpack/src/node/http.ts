@@ -1,8 +1,11 @@
+import { Connect } from 'dep-types/connect'
+import colors from 'picocolors'
 import type {
   Server as HttpServer,
   OutgoingHttpHeaders as HttpServerHeaders,
 } from 'node:http'
 import type { ServerOptions as HttpsServerOptions } from 'node:https'
+import { Logger } from './logger'
 import type { ProxyOptions } from './server/middlewares/proxy'
 
 export interface CommonServerOptions {
@@ -81,4 +84,46 @@ export interface CorsOptions {
 
 export type CorsOrigin = boolean | string | RegExp | (string | RegExp)[]
 
-export async function resolveHttpServer({ proxy }: CommonServerOptions) {}
+export async function resolveHttpServer(
+  { proxy }: CommonServerOptions,
+  app: Connect.Server,
+  httpsOptions?: HttpsServerOptions,
+): Promise<HttpServer> {
+  if (!httpsOptions) {
+    const { createServer } = await import('node:http')
+    return createServer(app)
+  }
+
+  if (proxy) {
+    const { createServer } = await import('node:https')
+    return createServer(httpsOptions, app)
+  } else {
+    const { createSecureServer } = await import('node:http2')
+    return createSecureServer(
+      {
+        maxSessionMemory: 1000,
+        ...httpsOptions,
+        allowHTTP1: true,
+      },
+      // @ts-expect-error
+      app,
+    ) as unknown as HttpServer
+  }
+}
+
+export function setClientErrorHandler(
+  server: HttpServer,
+  logger: Logger,
+): void {
+  server.on('clientError', (err, socket) => {
+    let msg = '400 Bad Request'
+    if ((err as any).code === 'HPE_HEADER_OVERFLOW') {
+      msg = '431 Request Header Fields Too Large'
+      logger.warn(colors.yellow('Server responded with status code 431. '))
+    }
+    if ((err as any).code === 'ECONNRESET' || !socket.writable) {
+      return
+    }
+    socket.end(`HTTP/1.1 ${msg}\r\n\r\n`)
+  })
+}
