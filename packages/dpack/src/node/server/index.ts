@@ -1,7 +1,9 @@
+import type * as net from 'node:net'
 import type { Connect } from 'dep-types/connect'
 import type { InlineConfig, ResolvedConfig } from '../config'
 import {
   CommonServerOptions,
+  httpServerStart,
   resolveHttpServer,
   setClientErrorHandler,
 } from '../http'
@@ -15,8 +17,10 @@ import type { ModuleNode } from './moduleGraph'
 import { ModuleGraph } from './moduleGraph'
 import type { TransformOptions, TransformResult } from './transformRequest'
 import connect from 'connect'
-import { createWebSocketServer } from './ws'
+import { createWebSocketServer, WebSocketServer } from './ws'
 import path from 'node:path'
+import { resolveHostname, resolveServerUrls } from '../utils'
+import { createDevHtmlTransformFn } from './middlewares/indexHtml'
 
 export interface ServerOptions extends CommonServerOptions {
   /**
@@ -121,19 +125,20 @@ export interface DpackDevServer {
   /**
    * 追踪import关系的模块图，URL到文件的映射和 hmr 状态。
    */
-  moduleGraph: ModuleGraph
+  moduleGraph?: ModuleGraph
   /**
-   * 在CLI上打印出的已解决的Url
+   * 在CLI上打印出的已解析的Url
    */
-  resolvedUrls: ResolvedServerUrls | null
+  resolvedUrls?: ResolvedServerUrls | null
   /**
    * 以编程方式解析、加载和转换一个URL并获得结果
    * 而不需要通过http请求管道。
+   * TODO:
    */
-  transformRequest(
-    url: string,
-    options?: TransformOptions,
-  ): Promise<TransformResult | null>
+  // transformRequest(
+  //   url: string,
+  //   options?: TransformOptions,
+  // ): Promise<TransformResult | null>
   /**
    * 应用内置的HTML转换和任何插件的HTML转换。
    */
@@ -168,9 +173,10 @@ export interface DpackDevServer {
    */
   // ssrFixStacktrace(e: Error): void
   /**
+   * TODO:
    * 触发模块图中某个模块的HMR。你可以使用 `server.moduleGraph`来检索要重新加载的模块
    */
-  reloadModule(module: ModuleNode): Promise<void>
+  // reloadModule(module: ModuleNode): Promise<void>
   /**
    * 启动服务
    */
@@ -180,9 +186,10 @@ export interface DpackDevServer {
    */
   close(): Promise<void>
   /**
+   * TODO:
    * 打印服务urls
    */
-  printUrls(): void
+  // printUrls(): void
   /**
    * 重启服务
    *
@@ -220,7 +227,7 @@ export interface DpackDevServer {
   /**
    * @internal
    */
-  _fsDenyGlob: Matcher
+  // _fsDenyGlob: Matcher
 }
 
 export interface ResolvedServerUrls {
@@ -244,11 +251,215 @@ export async function createServer(
   const httpServer = middlewareMode
     ? null
     : await resolveHttpServer(serverConfig, middlewares, httpsOptions)
-  const ws = createWebSocketServer(httpServer, config, httpsOptions)
+  // const ws = createWebSocketServer(httpServer, config, httpsOptions)
 
   if (httpServer) {
     setClientErrorHandler(httpServer, config.logger)
   }
 
   const watcher = chokidar.watch(path.resolve(root)) // TODO:options
+
+  // const moduleGraph = new ModuleGraph((url) => container)
+
+  // const container = await createPluginContainer(config, moduleGraph, watcher)
+  const closeHttpServer = createServerCloseFn(httpServer)
+
+  let exitProcess: () => void
+
+  const server: DpackDevServer = {
+    config,
+    middlewares,
+    httpServer,
+    watcher,
+    // ws,
+    resolvedUrls: null,
+    // transformRequest(url, options) {
+    //   return transformRequest(url, server, options)
+    // },
+    transformIndexHtml: null!, // to be immediately set
+    // hmr相关
+    // async reloadModule(module) {
+    //   if (module.file) {
+    //     updateModules(module.file, [module], Date.now(), server)
+    //   }
+    // },
+    async listen(port?: number, isRestart?: boolean) {
+      await startServer(server, port, isRestart)
+      if (httpServer) {
+        server.resolvedUrls = await resolveServerUrls(
+          httpServer,
+          config.server,
+          config,
+        )
+      }
+      return server
+    },
+    async close() {
+      if (!middlewareMode) {
+        process.off('SIGTERM', exitProcess)
+        if (process.env.CI !== 'true') {
+          process.stdin.off('end', exitProcess)
+        }
+      }
+      await Promise.allSettled([
+        watcher.close(),
+        // ws.close(),
+        // container.close(),
+        // getDepsOptimizer(server.config)?.close(),
+        // getDepsOptimizer(server.config, true)?.close(),
+        closeHttpServer(),
+      ])
+      server.resolvedUrls = null
+    },
+    // 打印相关
+    // printUrls() {
+    //   if (server.resolvedUrls) {
+    //     printServerUrls(
+    //       server.resolvedUrls,
+    //       // serverConfig.host,
+    //       config.logger?.info,
+    //     )
+    //   } else if (middlewareMode) {
+    //     throw new Error('cannot print server URLs in middleware mode.')
+    //   } else {
+    //     throw new Error(
+    //       'cannot print server URLs before server.listen is called.',
+    //     )
+    //   }
+    // },
+    async restart(forceOptimize?: boolean) {
+      if (!server._restartPromise) {
+        server._forceOptimizeOnRestart = !!forceOptimize
+        server._restartPromise = restartServer(server).finally(() => {
+          server._restartPromise = null
+          server._forceOptimizeOnRestart = false
+        })
+      }
+      return server._restartPromise
+    },
+
+    _restartPromise: null,
+    _importGlobMap: new Map(),
+    _forceOptimizeOnRestart: false,
+    _pendingRequests: new Map(),
+    // _fsDenyGlob: picomatch(config.server.fs.deny, { matchBase: true }),
+  }
+
+  server.transformIndexHtml = createDevHtmlTransformFn(server)
+
+  return server
+}
+
+async function startServer(
+  server: DpackDevServer,
+  inlinePort?: number,
+  isRestart: boolean = false,
+) {
+  const httpServer = server.httpServer
+  if (!httpServer) {
+    throw new Error('')
+  }
+
+  const options = server.config.server
+  const port = inlinePort ?? options?.port ?? 3002
+  const hostName = await resolveHostname(options?.host)
+
+  // const protocol = options.https ? 'https' : 'http'
+
+  await httpServerStart(httpServer, {
+    port,
+    host: hostName.host,
+    logger: server.config.logger,
+  })
+}
+
+function createServerCloseFn(server: http.Server | null) {
+  if (!server) {
+    return () => {}
+  }
+
+  let hasListened = false
+  const openSockets = new Set<net.Socket>()
+
+  server.on('connection', (socket) => {
+    openSockets.add(socket)
+    socket.on('close', () => {
+      openSockets.delete(socket)
+    })
+  })
+
+  server.once('listening', () => {
+    hasListened = true
+  })
+
+  return () =>
+    new Promise<void>((resolve, reject) => {
+      openSockets.forEach((s) => s.destroy())
+      if (hasListened) {
+        server.close((err) => {
+          if (err) {
+            reject(err)
+          } else {
+            resolve()
+          }
+        })
+      } else {
+        resolve()
+      }
+    })
+}
+
+async function restartServer(server: DpackDevServer) {
+  global.__dpack_start_time = performance.now()
+  const { port: prevPort, host: prevHost } = server.config.server
+  // const shortcutsOptions: BindShortcutsOptions = server._shortcutsOptions
+
+  await server.close()
+
+  let inlineConfig = server.config.inlineConfig
+  // if (server._forceOptimizeOnRestart) {
+  //   inlineConfig = mergeConfig(inlineConfig, {
+  //     optimizeDeps: {
+  //       force: true,
+  //     },
+  //   })
+  // }
+
+  let newServer = null
+  try {
+    newServer = await createServer(inlineConfig)
+  } catch (err: any) {
+    server.config.logger.error(err.message, {
+      timestamp: true,
+    })
+    return
+  }
+
+  // prevent new server `restart` function from calling
+  newServer._restartPromise = server._restartPromise
+
+  Object.assign(server, newServer)
+
+  const {
+    logger,
+    server: { port, host, middlewareMode },
+  } = server.config
+  if (!middlewareMode) {
+    await server.listen(port, true)
+    logger?.info('server restarted.', { timestamp: true })
+    if ((port ?? 3002) !== (prevPort ?? 3002) || host !== prevHost) {
+      logger?.info('')
+      // server.printUrls()
+    }
+  } else {
+    logger?.info('server restarted.', { timestamp: true })
+  }
+
+  // if (shortcutsOptions) {
+  //   shortcutsOptions.print = false
+  //   bindShortcuts(newServer, shortcutsOptions)
+  // }
+
+  // new server (the current server) can restart now
+  newServer._restartPromise = null
 }

@@ -31,3 +31,9 @@ export const CSS_LANGS_RE =
 export const FS_PREFIX = `/@fs/`
 
 export const VALID_ID_PREFIX = `/@id/`
+
+export const wildcardHosts = new Set([
+  '0.0.0.0',
+  '::',
+  '0000:0000:0000:0000:0000:0000:0000:0000',
+])

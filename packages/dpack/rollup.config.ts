@@ -4,6 +4,7 @@ import { defineConfig, RollupOptions, Plugin } from 'rollup'
 import typescript from '@rollup/plugin-typescript'
 import nodeResolve from '@rollup/plugin-node-resolve'
 import commonjs from '@rollup/plugin-commonjs'
+import json from '@rollup/plugin-json'
 import { readFileSync } from 'node:fs'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -72,6 +73,7 @@ function createNodePlugins(
       extensions: ['.js'],
       ignore: ['bufferutil', 'utf-8-validate'],
     }),
+    json(),
   ]
 }
 

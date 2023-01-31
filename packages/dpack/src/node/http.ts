@@ -7,6 +7,7 @@ import type {
 import type { ServerOptions as HttpsServerOptions } from 'node:https'
 import { Logger } from './logger'
 import type { ProxyOptions } from './server/middlewares/proxy'
+import { rejects } from 'node:assert'
 
 export interface CommonServerOptions {
   /**
@@ -125,5 +126,31 @@ export function setClientErrorHandler(
       return
     }
     socket.end(`HTTP/1.1 ${msg}\r\n\r\n`)
+  })
+}
+
+export async function httpServerStart(
+  httpServer: HttpServer,
+  serverOptions: { port: number; host?: string; logger: Logger },
+) {
+  let { port, host, logger } = serverOptions
+
+  return new Promise((resolve, reject) => {
+    const onError = (e: Error & { code?: string }) => {
+      if (e.code === 'EADDRINUSE') {
+        logger.info(`Port ${port} 已经被使用，尝试使用另一个`)
+        httpServer.listen(++port, host)
+      } else {
+        httpServer.removeListener('error', onError)
+        reject(e)
+      }
+    }
+
+    httpServer.on('error', onError)
+
+    httpServer.listen(port, host, () => {
+      httpServer.removeListener('error', onError)
+      resolve(port)
+    })
   })
 }

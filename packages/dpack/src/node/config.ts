@@ -126,6 +126,7 @@ export type ResolvedConfig = Readonly<
     mode: string
     isWorker: boolean
     // TODO: more
+    plugins: readonly Plugin[]
     server: ResolvedServerOptions
     // build: ResolvedBuildOptions
     // preview: ResolvedPreviewOptions

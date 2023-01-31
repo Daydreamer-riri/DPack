@@ -2,7 +2,9 @@
   "name": "@dpack/test-cli",
   "private": true,
   "version": "0.0.0",
-  "scripts": {},
+  "scripts": {
+    "dev": "dpack"
+  },
   "dependencies": {
     "@dpack/dpack": "^0.0.1"
   }
