@@ -117,7 +117,7 @@ cli
 
       await server.listen()
 
-      // const info = server.config.logger.info
+      const info = server.config.logger.info
 
       const dpackStartTime = global.__dpack_start_time ?? false
       const startupDurationString = dpackStartTime
@@ -128,11 +128,11 @@ cli
           )
         : ''
 
-      // info(
-      //   `\n ${colors.green(
-      //     `${colors.bold('DPACK')} v${VERSION}`,
-      //   )} ${startupDurationString} \n`,
-      // )
+      info(
+        `\n ${colors.green(
+          `${colors.bold('DPACK')} v${VERSION}`,
+        )} ${startupDurationString} \n`,
+      )
     } catch (e) {
       console.log(e)
     }
