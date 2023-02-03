@@ -1,12 +1,32 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import dns from 'node:dns/promises'
+import os from 'node:os'
 import type { Server } from 'node:net'
 import { debug } from 'debug'
-import { wildcardHosts } from './constants'
+import { FS_PREFIX, wildcardHosts } from './constants'
 import type { CommonServerOptions } from './http'
 import type { ResolvedConfig } from './config'
 import type { ResolvedServerUrls } from './server'
+import { createFilter as _createFilter } from '@rollup/pluginutils'
+
+/**
+ * Inlined to keep `@rollup/pluginutils` in devDependencies
+ */
+export type FilterPattern =
+  | ReadonlyArray<string | RegExp>
+  | string
+  | RegExp
+  | null
+export const createFilter = _createFilter as (
+  include?: FilterPattern,
+  exclude?: FilterPattern,
+  options?: { resolve?: string | false | null },
+) => (id: string | unknown) => boolean
+
+export function slash(p: string): string {
+  return p.replace(/\\/g, '/')
+}
 
 // set in bin/dpack.js
 const filter = process.env.DPACK_DEBUG_FILTER
@@ -151,5 +171,106 @@ export async function resolveServerUrls(
   return {
     local: [],
     network: [],
+  }
+}
+
+export const isWindows = os.platform() === 'win32'
+const VOLUME_RE = /^[A-Z]:/i
+
+export function normalizePath(id: string): string {
+  return path.posix.normalize(isWindows ? slash(id) : id)
+}
+
+export function fsPathFromId(id: string): string {
+  const fsPath = normalizePath(
+    id.startsWith(FS_PREFIX) ? id.slice(FS_PREFIX.length) : id,
+  )
+  return fsPath.startsWith('/') || fsPath.match(VOLUME_RE)
+    ? fsPath
+    : `/${fsPath}`
+}
+
+export function arraify<T>(target: T | T[]): T[] {
+  return Array.isArray(target) ? target : [target]
+}
+
+export function mergeConfig(
+  defaults: Record<string, any>,
+  overrides: Record<string, any>,
+  isRoot = true,
+): Record<string, any> {
+  return mergeConfigRecursively(defaults, overrides, isRoot ? '' : '.')
+}
+
+function mergeConfigRecursively(
+  defaults: Record<string, any>,
+  overrides: Record<string, any>,
+  rootPath: string,
+) {
+  const merged: Record<string, any> = { ...defaults }
+  for (const key in overrides) {
+    const value = overrides[key]
+    if (value == null) {
+      continue
+    }
+
+    const existing = merged[key]
+
+    if (existing == null) {
+      merged[key] = value
+      continue
+    }
+
+    // fields that require special handling
+    if (key === 'alias' && (rootPath === 'resolve' || rootPath === '')) {
+      // merged[key] = mergeAlias(existing, value)
+      continue
+    } else if (key === 'assetsInclude' && rootPath === '') {
+      merged[key] = [].concat(existing, value)
+      continue
+    } else if (
+      key === 'noExternal' &&
+      rootPath === 'ssr' &&
+      (existing === true || value === true)
+    ) {
+      merged[key] = true
+      continue
+    }
+
+    if (Array.isArray(existing) || Array.isArray(value)) {
+      merged[key] = [...arraify(existing ?? []), ...arraify(value ?? [])]
+      continue
+    }
+    if (isObject(existing) && isObject(value)) {
+      merged[key] = mergeConfigRecursively(
+        existing,
+        value,
+        rootPath ? `${rootPath}.${key}` : key,
+      )
+      continue
+    }
+
+    merged[key] = value
+  }
+  return merged
+}
+
+export function writeFile(
+  filename: string,
+  content: string | Uint8Array,
+): void {
+  const dir = path.dirname(filename)
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
+  fs.writeFileSync(filename, content)
+}
+
+export function isFileReadable(filename: string): boolean {
+  try {
+    fs.accessSync(filename, fs.constants.R_OK)
+    return true
+  } catch {
+    return false
   }
 }
