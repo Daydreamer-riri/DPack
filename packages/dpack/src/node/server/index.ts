@@ -1,9 +1,10 @@
 import type * as net from 'node:net'
 import type { Connect } from 'dep-types/connect'
-import type { InlineConfig, ResolvedConfig } from '../config'
+import { InlineConfig, resolveConfig, ResolvedConfig } from '../config'
 import {
   CommonServerOptions,
   httpServerStart,
+  resolveHttpsConfig,
   resolveHttpServer,
   setClientErrorHandler,
 } from '../http'
@@ -19,8 +20,15 @@ import type { TransformOptions, TransformResult } from './transformRequest'
 import connect from 'connect'
 import { createWebSocketServer, WebSocketServer } from './ws'
 import path from 'node:path'
-import { resolveHostname, resolveServerUrls } from '../utils'
-import { createDevHtmlTransformFn } from './middlewares/indexHtml'
+import { normalizePath, resolveHostname, resolveServerUrls } from '../utils'
+import {
+  createDevHtmlTransformFn,
+  indexHtmlMiddleware,
+} from './middlewares/indexHtml'
+import type { Logger } from '../logger'
+import { searchForPackageRoot } from './searchRoot'
+import colors from 'picocolors'
+import { htmlFallbackMiddleware } from './middlewares/htmlFallback'
 
 export interface ServerOptions extends CommonServerOptions {
   /**
@@ -241,11 +249,11 @@ export async function createServer(
   // const config = await resolveConfig
   // const { middlewareMode } = serverConfig
   // TODO:
-  const config: any = {}
+  const config = await resolveConfig(inlineConfig, 'serve')
+  // console.log('Config', config)
+  const { root, server: serverConfig } = config
   const middlewareMode = false
-  const serverConfig = {}
-  const httpsOptions = {}
-  const root = process.cwd()
+  const httpsOptions = await resolveHttpsConfig(config.server.https)
 
   const middlewares = connect() as Connect.Server
   const httpServer = middlewareMode
@@ -347,6 +355,17 @@ export async function createServer(
 
   server.transformIndexHtml = createDevHtmlTransformFn(server)
 
+  // Internal middlewares ----------------------------------------------
+
+  // html fallback
+  if (config.appType === 'spa' || config.appType === 'mpa') {
+    middlewares.use(htmlFallbackMiddleware(root, config.appType === 'spa'))
+  }
+
+  if (config.appType === 'spa' || config.appType === 'mpa') {
+    middlewares.use(indexHtmlMiddleware(server))
+  }
+
   return server
 }
 
@@ -364,7 +383,7 @@ async function startServer(
   const port = inlinePort ?? options?.port ?? 3002
   const hostName = await resolveHostname(options?.host)
 
-  // const protocol = options.https ? 'https' : 'http'
+  //   const protocol = options.https ? 'https' : 'http'
 
   await httpServerStart(httpServer, {
     port,
@@ -462,4 +481,48 @@ async function restartServer(server: DpackDevServer) {
 
   // new server (the current server) can restart now
   newServer._restartPromise = null
+}
+
+function resolvedAllowDir(root: string, dir: string) {
+  return normalizePath(path.resolve(root, dir))
+}
+
+export function resolveServerOptions(
+  root: string,
+  raw: ServerOptions | undefined,
+  logger: Logger,
+) {
+  const server: ResolvedServerOptions = {
+    preTransformRequests: true,
+    ...(raw as ResolvedServerOptions),
+    middlewareMode: !!raw?.middlewareMode,
+  }
+
+  let allowDirs = server.fs?.allow
+  const deny = server.fs?.deny || ['.env', 'env.*', '*.{crt,pem}']
+
+  if (!allowDirs) {
+    allowDirs = [searchForPackageRoot(root)]
+  }
+
+  allowDirs = allowDirs.map((i) => resolvedAllowDir(root, i))
+
+  server.fs = {
+    strict: server.fs?.strict ?? true,
+    allow: allowDirs,
+    deny,
+  }
+
+  if (server.origin?.endsWith('/')) {
+    server.origin = server.origin.slice(0, -1)
+    logger.warn(
+      colors.yellow(
+        `${colors.bold('(!)')} server.origin 不应以 "/" 结尾。使用 "${
+          server.origin
+        }" 替代。`,
+      ),
+    )
+  }
+
+  return server
 }
