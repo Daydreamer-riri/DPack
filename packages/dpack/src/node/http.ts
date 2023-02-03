@@ -8,6 +8,7 @@ import type { ServerOptions as HttpsServerOptions } from 'node:https'
 import { Logger } from './logger'
 import type { ProxyOptions } from './server/middlewares/proxy'
 import { rejects } from 'node:assert'
+import { isObject } from './utils'
 
 export interface CommonServerOptions {
   /**
@@ -110,6 +111,19 @@ export async function resolveHttpServer(
       app,
     ) as unknown as HttpServer
   }
+}
+
+export async function resolveHttpsConfig(
+  https: boolean | HttpsServerOptions | undefined,
+): Promise<HttpsServerOptions | undefined> {
+  if (!https) return void 0
+
+  const httpsOption = isObject(https) ? { ...https } : {}
+
+  const { ca, cert, key, pfx } = httpsOption
+  Object.assign(httpsOption, {})
+
+  return httpsOption
 }
 
 export function setClientErrorHandler(
