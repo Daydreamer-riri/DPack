@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { performance } from 'node:perf_hooks'
@@ -7,10 +8,23 @@ import colors from 'picocolors'
 import { createLogger, Logger, LogLevel } from './logger'
 import type { HookHandler, Plugin } from './plugin'
 import type { ESBuildOptions } from './plugins/esbuild'
-import type { ResolvedServerOptions, ServerOptions } from './server'
+import {
+  ResolvedServerOptions,
+  resolveServerOptions,
+  ServerOptions,
+} from './server'
 import { DEFAULT_CONFIG_FILES } from './constants'
-import { isObject, lookupFile } from './utils'
+import type { RollupOptions } from 'rollup'
+import {
+  createFilter,
+  isObject,
+  lookupFile,
+  mergeConfig,
+  normalizePath,
+} from './utils'
 import { debug } from 'node:console'
+import { BuildOptions, resolveBuildOptions } from './build'
+import { ESBUILD_MODULES_TARGET } from './constants'
 
 export interface ConfigEnv {
   command: 'build' | 'serve'
@@ -53,7 +67,7 @@ export interface UserConfig {
    * 缓存目录，包含生成文件与依赖预构建文件
    * @default 'node_modules/.dpack'
    */
-  cacheDir?: string
+  // cacheDir?: string
   mode?: string
   /**
    * 定义全局变量的替换。
@@ -80,7 +94,7 @@ export interface UserConfig {
    * 服务器的具体选项，如host、port、https...
    */
   server?: ServerOptions
-  // build?: BuildOptions
+  build?: BuildOptions
   // preview?: PreviewOptions
   // ssr?: SSROptions
   /**
@@ -104,6 +118,12 @@ export interface UserConfig {
    * @default 'spa'
    */
   appType?: AppType
+}
+
+export interface ResolveWorkerOptions extends PluginHookUtils {
+  format: 'es' | 'iife'
+  plugins: Plugin[]
+  rollupOptions: RollupOptions
 }
 
 export interface InlineConfig extends UserConfig {
@@ -155,9 +175,9 @@ export async function resolveConfig(
   command: 'build' | 'serve',
   defaultMode = 'development',
   defaultNodeEnv = 'development',
-) {
+): Promise<ResolvedConfig> {
   let config = inlineConfig
-  let configFileDependenciew: string[] = []
+  let configFileDependencies: string[] = []
   let mode = inlineConfig.mode || defaultMode
   const isNodeEnvSet = !!process.env.NODE_ENV
 
@@ -174,6 +194,152 @@ export async function resolveConfig(
   if (configFile !== false) {
     // const loadResult = await
   }
+
+  mode = inlineConfig.mode || config.mode || mode
+  config.mode = mode
+
+  const filterPlugin = (p: Plugin) => {
+    if (!p) {
+      return false
+    } else if (!p.apply) {
+      return true
+    } else if (typeof p.apply === 'function') {
+      // return p.apply()
+    } else {
+      return (p.apply = command)
+    }
+  }
+
+  // plugin 相关 TODO:
+  // ..........
+
+  // 定义 logger
+  const logger = createLogger(config.logLevel, {
+    allowClearScreen: config.clearScreen,
+  })
+
+  // 解析 root
+  const resolvedRoot = normalizePath(
+    config.root ? path.resolve(config.root) : process.cwd(),
+  )
+
+  // const clientAlias = [
+  //   { find: /^\/?@dpack\/env/, replacement: ENV_ENTRY },
+  //   { find: /^\/?@dpack\/client/, replacement: CLIENT_ENTRY },
+  // ]
+
+  // const resolveOptions: ResolvedConfig['resolve']
+
+  // env 相关 TODO:
+  const envDir = config.envDir
+    ? normalizePath(path.resolve(resolvedRoot, config.envDir))
+    : resolvedRoot
+  // const userEnv = inlineConfig.envFile !== false & load
+
+  const isProduction = process.env.NODE_ENV === 'production'
+
+  const isBuild = command === 'build'
+  const relativeBaseShortcut = config.base === '' || config.base === './'
+  const resolvedBase = relativeBaseShortcut
+    ? !isBuild
+      ? '/'
+      : './'
+    : resolveBaseUrl(config.base, isBuild, logger) ?? '/'
+
+  const resolvedBuildOptions = resolveBuildOptions(config.build, logger)
+
+  // resolve cache dir
+  const pkgPath = lookupFile(resolvedRoot, ['package.json'], { pathOnly: true })
+  const cacheDir = normalizePath(
+    pkgPath
+      ? path.join(path.dirname(pkgPath), `node_modules/.dpack`)
+      : path.join(resolvedRoot, `.dpack`),
+  )
+
+  const assetsFilter =
+    config.assetsInclude &&
+    (!Array.isArray(config.assetsInclude) || config.assetsInclude.length)
+      ? createFilter(config.assetsInclude)
+      : () => false
+
+  // createResolver TODO:
+
+  const { publicDir } = config
+  const resolvedPublicDir =
+    publicDir !== false && publicDir !== ''
+      ? path.resolve(
+          resolvedRoot,
+          typeof publicDir === 'string' ? publicDir : 'public',
+        )
+      : ''
+
+  const server = resolveServerOptions(resolvedRoot, config.server, logger)
+
+  const middlewareMode = config?.server?.middlewareMode
+
+  const BADE_URL = resolvedBase
+
+  // worker TODO:
+  // let workerConfig = mergeConfig({}, config)
+  // const resolvedWorkerOptions: ResolveWorkerOptions = {
+  //   format: 'es',
+  //   plugins: [],
+  //   rollupOptions: workerConfig.worker
+  // }
+
+  const resolvedConfig: ResolvedConfig = {
+    configFile: configFile ? normalizePath(configFile) : void 0,
+    configFileDependencies: configFileDependencies.map((name) =>
+      normalizePath(path.resolve(name)),
+    ),
+    inlineConfig,
+    root: resolvedRoot,
+    base: resolvedBase.endsWith('/') ? resolvedBase : resolvedBase + '/',
+    rawBase: resolvedBase,
+    // resolve
+    publicDir: resolvedPublicDir,
+    cacheDir,
+    command,
+    mode,
+    isWorker: false,
+    plugins: [],
+    server,
+    build: resolvedBuildOptions,
+    logger,
+    appType: config.appType ?? 'spa',
+    getSortedPluginHooks: undefined!,
+    getSortedPlugins: undefined!,
+  }
+
+  const resolved: ResolvedConfig = {
+    ...config,
+    ...resolvedConfig,
+  }
+
+  return resolved
+}
+
+/**
+ * 解析 base url
+ */
+export function resolveBaseUrl(
+  base: UserConfig['base'] = '/',
+  isBuild: boolean,
+  logger: Logger,
+): string {
+  if (base.startsWith('.')) {
+    logger.warn(
+      colors.yellow(
+        colors.bold(
+          `(!) 无效的 "base "选项：${base}. 该值只能是一个绝对` +
+            `URL，./，或一个空字符串。`,
+        ),
+      ),
+    )
+    return '/'
+  }
+
+  return base
 }
 
 export async function loadConfigFromFile(
@@ -254,7 +420,3 @@ function bundleConfigFile(resolvedPath: string, isESM: boolean): any {
 }
 
 function loadConfigFromBundledFile(a: string, b: string, c: boolean): any {}
-
-function normalizePath(resolvedPath: string): string {
-  throw new Error('Function not implemented.')
-}
