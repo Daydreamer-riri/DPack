@@ -23,8 +23,13 @@ import {
   normalizePath,
 } from './utils'
 import { debug } from 'node:console'
-import { BuildOptions, resolveBuildOptions } from './build'
+import {
+  BuildOptions,
+  resolveBuildOptions,
+  ResolvedBuildOptions,
+} from './build'
 import { ESBUILD_MODULES_TARGET } from './constants'
+import { resolvePlugins } from './plugins'
 
 export interface ConfigEnv {
   command: 'build' | 'serve'
@@ -148,7 +153,7 @@ export type ResolvedConfig = Readonly<
     // TODO: more
     plugins: readonly Plugin[]
     server: ResolvedServerOptions
-    // build: ResolvedBuildOptions
+    build: ResolvedBuildOptions
     // preview: ResolvedPreviewOptions
     // ssr: ResolvedSSROptions
     // assetsInclude: (file: string) => boolean
@@ -315,6 +320,8 @@ export async function resolveConfig(
     ...config,
     ...resolvedConfig,
   }
+
+  ;(resolved.plugins as Plugin[]) = await resolvePlugins(resolved)
 
   return resolved
 }

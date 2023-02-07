@@ -51,3 +51,5 @@ export const wildcardHosts = new Set([
   '::',
   '0000:0000:0000:0000:0000:0000:0000:0000',
 ])
+
+export const NULL_BYTE_PLACEHOLDER = `__x00__`

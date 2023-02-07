@@ -53,6 +53,31 @@ export class ModuleGraph {
     return this.idToModuleMap.get(removeTimestampQuery(id))
   }
 
+  async ensureEntryFromUrl(rawUrl: string): Promise<ModuleNode> {
+    const [url, resolvedId, meta] = await this.resolveUrl(rawUrl)
+    let mod = this.idToModuleMap.get(resolvedId)
+    if (!mod) {
+      mod = new ModuleNode(url)
+      if (meta) mod.meta = meta
+      this.urlToModuleMap.set(url, mod)
+      mod.id = resolvedId
+      this.idToModuleMap.set(resolvedId, mod)
+      const file = (mod.file = cleanUrl(resolvedId))
+      let fileMappedModules = this.fileToModulesMap.get(file)
+      if (!fileMappedModules) {
+        fileMappedModules = new Set()
+        this.fileToModulesMap.set(file, fileMappedModules)
+      }
+      fileMappedModules.add(mod)
+    }
+    // 多个URL可以映射到相同的模块和ID，请确保我们将URL注册到现有的模块中。
+    // 在这种情况下，确保我们将url注册到现有的模块上
+    else if (!this.urlToModuleMap.has(url)) {
+      this.urlToModuleMap.set(url, mod)
+    }
+    return mod
+  }
+
   async resolveUrl(url: string): Promise<ResolveUrl> {
     url = removeImportQuery(removeTimestampQuery(url))
     const resolved = await this.resolveId(url)

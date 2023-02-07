@@ -9,6 +9,7 @@ import type { CommonServerOptions } from './http'
 import type { ResolvedConfig } from './config'
 import type { ResolvedServerUrls } from './server'
 import { createFilter as _createFilter } from '@rollup/pluginutils'
+import type { FSWatcher } from 'dep-types/chokidar'
 
 /**
  * Inlined to keep `@rollup/pluginutils` in devDependencies
@@ -56,6 +57,15 @@ export function createDebugger(
     }
     log(msg, ...args)
   }
+}
+
+const splitRE = /\r?\n/
+
+const range: number = 2
+
+export function pad(source: string, n = 2): string {
+  const lines = source.split(splitRE)
+  return lines.map((l) => ` `.repeat(n) + l).join(`\n`)
 }
 
 export function isObject(value: unknown): value is Record<string, any> {
@@ -114,6 +124,9 @@ export const hashRE = /#.*$/s
 
 export const cleanUrl = (url: string): string =>
   url.replace(hashRE, '').replace(queryRE, '')
+
+export const externalRE = /^(https?:)?\/\//
+export const isExternalUrl = (url: string): boolean => externalRE.test(url)
 
 export async function getLocalhostAddressIfDiffersFromDNS(): Promise<
   string | undefined
@@ -272,5 +285,23 @@ export function isFileReadable(filename: string): boolean {
     return true
   } catch {
     return false
+  }
+}
+
+export function ensureWatchedFile(
+  watcher: FSWatcher,
+  file: string | null,
+  root: string,
+): void {
+  if (
+    file &&
+    // only need to watch if out of root
+    !file.startsWith(root + '/') &&
+    // some rollup plugins use null bytes for private resolved Ids
+    !file.includes('\0') &&
+    fs.existsSync(file)
+  ) {
+    // resolve file to normalized system path
+    watcher.add(path.resolve(file))
   }
 }

@@ -16,7 +16,11 @@ import picomatch from 'picomatch'
 import type { Matcher } from 'picomatch'
 import type { ModuleNode } from './moduleGraph'
 import { ModuleGraph } from './moduleGraph'
-import type { TransformOptions, TransformResult } from './transformRequest'
+import {
+  TransformOptions,
+  transformRequest,
+  TransformResult,
+} from './transformRequest'
 import connect from 'connect'
 import { createWebSocketServer, WebSocketServer } from './ws'
 import path from 'node:path'
@@ -29,6 +33,10 @@ import type { Logger } from '../logger'
 import { searchForPackageRoot } from './searchRoot'
 import colors from 'picocolors'
 import { htmlFallbackMiddleware } from './middlewares/htmlFallback'
+import { transformMiddleware } from './middlewares/transform'
+import { optimizeDeps } from '../optimizer'
+import type { PluginContainer } from './pluginContainer'
+import { createPluginContainer } from './pluginContainer'
 
 export interface ServerOptions extends CommonServerOptions {
   /**
@@ -126,14 +134,13 @@ export interface DpackDevServer {
    */
   // ws: WebSocketServer
   /**
-   * TODO:
    * Rollup plugin container that can run plugin hooks on a given file
    */
-  // pluginContainer: PluginContainer
+  pluginContainer: PluginContainer
   /**
    * 追踪import关系的模块图，URL到文件的映射和 hmr 状态。
    */
-  moduleGraph?: ModuleGraph
+  moduleGraph: ModuleGraph
   /**
    * 在CLI上打印出的已解析的Url
    */
@@ -141,12 +148,11 @@ export interface DpackDevServer {
   /**
    * 以编程方式解析、加载和转换一个URL并获得结果
    * 而不需要通过http请求管道。
-   * TODO:
    */
-  // transformRequest(
-  //   url: string,
-  //   options?: TransformOptions,
-  // ): Promise<TransformResult | null>
+  transformRequest(
+    url: string,
+    options?: TransformOptions,
+  ): Promise<TransformResult | null>
   /**
    * 应用内置的HTML转换和任何插件的HTML转换。
    */
@@ -255,6 +261,8 @@ export async function createServer(
   const middlewareMode = false
   const httpsOptions = await resolveHttpsConfig(config.server.https)
 
+  optimizeDeps(config)
+
   const middlewares = connect() as Connect.Server
   const httpServer = middlewareMode
     ? null
@@ -267,9 +275,11 @@ export async function createServer(
 
   const watcher = chokidar.watch(path.resolve(root)) // TODO:options
 
-  // const moduleGraph = new ModuleGraph((url) => container)
+  const moduleGraph: ModuleGraph = new ModuleGraph((url) =>
+    container.resolvedId(url, undefined),
+  )
 
-  // const container = await createPluginContainer(config, moduleGraph, watcher)
+  const container = await createPluginContainer(config, moduleGraph, watcher)
   const closeHttpServer = createServerCloseFn(httpServer)
 
   let exitProcess: () => void
@@ -279,11 +289,13 @@ export async function createServer(
     middlewares,
     httpServer,
     watcher,
+    pluginContainer: container,
     // ws,
+    moduleGraph,
     resolvedUrls: null,
-    // transformRequest(url, options) {
-    //   return transformRequest(url, server, options)
-    // },
+    transformRequest(url, options) {
+      return transformRequest(url, server, options)
+    },
     transformIndexHtml: null!, // to be immediately set
     // hmr相关
     // async reloadModule(module) {
@@ -365,6 +377,8 @@ export async function createServer(
   if (config.appType === 'spa' || config.appType === 'mpa') {
     middlewares.use(indexHtmlMiddleware(server))
   }
+
+  middlewares.use(transformMiddleware(server, config))
 
   return server
 }
