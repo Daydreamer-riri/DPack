@@ -1,12 +1,9 @@
 {
-  "name": "@dpack/test-cli",
+  "name": "@dpack/test-base",
   "private": true,
   "version": "0.0.0",
   "scripts": {
     "dev": "dpack"
-  },
-  "dependencies": {
-    "react": "18.2.0"
   },
   "devDependencies": {
     "@dpack/dpack": "^0.0.1"
