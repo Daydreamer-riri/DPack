@@ -13,7 +13,11 @@ import {
   resolveServerOptions,
   ServerOptions,
 } from './server'
-import { DEFAULT_CONFIG_FILES } from './constants'
+import {
+  DEFAULT_CONFIG_FILES,
+  DEFAULT_EXTENSIONS,
+  DEFAULT_MAIN_FIELDS,
+} from './constants'
 import type { RollupOptions } from 'rollup'
 import {
   createFilter,
@@ -30,6 +34,7 @@ import {
 } from './build'
 import { ESBUILD_MODULES_TARGET } from './constants'
 import { resolvePlugins } from './plugins'
+import type { ResolveOptions } from './plugins/resolve'
 
 export interface ConfigEnv {
   command: 'build' | 'serve'
@@ -87,7 +92,7 @@ export interface UserConfig {
   /**
    * 配置 resolver
    */
-  // resolve?: ResolveOptions & { alias?: AliasOptions }
+  resolve?: ResolveOptions
   // css?: CSSOptions
   // json?: JsonOptions
   esbuild?: ESBuildOptions | false
@@ -154,6 +159,7 @@ export type ResolvedConfig = Readonly<
     plugins: readonly Plugin[]
     server: ResolvedServerOptions
     build: ResolvedBuildOptions
+    resolve: Required<ResolveOptions>
     // preview: ResolvedPreviewOptions
     // ssr: ResolvedSSROptions
     // assetsInclude: (file: string) => boolean
@@ -233,7 +239,13 @@ export async function resolveConfig(
   //   { find: /^\/?@dpack\/client/, replacement: CLIENT_ENTRY },
   // ]
 
-  // const resolveOptions: ResolvedConfig['resolve']
+  const resolveOptions: ResolvedConfig['resolve'] = {
+    mainFields: config.resolve?.mainFields ?? DEFAULT_MAIN_FIELDS,
+    conditions: config.resolve?.conditions ?? [],
+    extensions: config.resolve?.extensions ?? DEFAULT_EXTENSIONS,
+    dedupe: config.resolve?.dedupe ?? [],
+    preserveSymlinks: config.resolve?.preserveSymlinks ?? false,
+  }
 
   // env 相关 TODO:
   const envDir = config.envDir
@@ -301,7 +313,7 @@ export async function resolveConfig(
     root: resolvedRoot,
     base: resolvedBase.endsWith('/') ? resolvedBase : resolvedBase + '/',
     rawBase: resolvedBase,
-    // resolve
+    resolve: resolveOptions,
     publicDir: resolvedPublicDir,
     cacheDir,
     command,
