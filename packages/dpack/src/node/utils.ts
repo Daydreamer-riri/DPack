@@ -4,7 +4,14 @@ import dns from 'node:dns/promises'
 import os from 'node:os'
 import type { Server } from 'node:net'
 import { debug } from 'debug'
-import { FS_PREFIX, wildcardHosts } from './constants'
+import {
+  CLIENT_PUBLIC_PATH,
+  ENV_PUBLIC_PATH,
+  FS_PREFIX,
+  NULL_BYTE_PLACEHOLDER,
+  VALID_ID_PREFIX,
+  wildcardHosts,
+} from './constants'
 import type { CommonServerOptions } from './http'
 import type { ResolvedConfig } from './config'
 import type { ResolvedServerUrls } from './server'
@@ -28,6 +35,33 @@ export const createFilter = _createFilter as (
 export function slash(p: string): string {
   return p.replace(/\\/g, '/')
 }
+/**
+ * 预先添加`/@id/`并替换空字节，这样ID就会是URL安全的。
+ * 这是对 importAnalysis 插件所解决的不是有效的浏览器导入指定符的 id 的预处理。
+ */
+export function wrapId(id: string): string {
+  return id.startsWith(VALID_ID_PREFIX)
+    ? id
+    : VALID_ID_PREFIX + id.replace('\0', NULL_BYTE_PLACEHOLDER)
+}
+
+/**
+ * Undo {@link wrapId}'s `/@id/` and null byte replacements.
+ */
+export function unwrapId(id: string): string {
+  return id.startsWith(VALID_ID_PREFIX)
+    ? id.slice(VALID_ID_PREFIX.length).replace(NULL_BYTE_PLACEHOLDER, '\0')
+    : id
+}
+
+export const flattenId = (id: string): string =>
+  id
+    .replace(/[/:]/g, '_')
+    .replace(/\./g, '__')
+    .replace(/(\s*>\s*)/g, '___')
+
+export const normalizeId = (id: string): string =>
+  id.replace(/(\s*>\s*)/g, ' > ')
 
 // set in bin/dpack.js
 const filter = process.env.DPACK_DEBUG_FILTER
@@ -107,16 +141,70 @@ export function lookupFile(
   }
 }
 
+const knownJsSrcRE = /\.(?:[jt]sx?|m[jt]s|vue|marko|svelte|astro|imba)(?:$|\?)/
+export const isJSRequest = (url: string): boolean => {
+  url = cleanUrl(url)
+  if (knownJsSrcRE.test(url)) {
+    return true
+  }
+  if (!path.extname(url) && !url.endsWith('/')) {
+    return true
+  }
+  return false
+}
+
+const knownTsRE = /\.(?:ts|mts|cts|tsx)$/
+const knownTsOutputRE = /\.(?:js|mjs|cjs|jsx)$/
+export const isTsRequest = (url: string): boolean => knownTsRE.test(url)
+export const isPossibleTsOutput = (url: string): boolean =>
+  knownTsOutputRE.test(cleanUrl(url))
+export function getPotentialTsSrcPaths(filePath: string): string[] {
+  const [name, type, query = ''] = filePath.split(/(\.(?:[cm]?js|jsx))(\?.*)?$/)
+  const paths = [name + type.replace('js', 'ts') + query]
+  if (!type.endsWith('x')) {
+    paths.push(name + type.replace('js', 'tsx') + query)
+  }
+  return paths
+}
+
 const importQueryRE = /(\?|&)import=?(?:&|$)/
+const directRequestRE = /(\?|&)direct=?(?:&|$)/
+const internalPrefixes = [
+  FS_PREFIX,
+  VALID_ID_PREFIX,
+  CLIENT_PUBLIC_PATH,
+  ENV_PUBLIC_PATH,
+]
+const InternalPrefixRE = new RegExp(`^(?:${internalPrefixes.join('|')})`)
 const trailingSeparatorRE = /[?&]$/
+export const isImportRequest = (url: string): boolean => importQueryRE.test(url)
+export const isInternalRequest = (url: string): boolean =>
+  InternalPrefixRE.test(url)
 
 export function removeImportQuery(url: string): string {
   return url.replace(importQueryRE, '$1').replace(trailingSeparatorRE, '')
+}
+export function removeDirectQuery(url: string): string {
+  return url.replace(directRequestRE, '$1').replace(trailingSeparatorRE, '')
+}
+
+export function injectQuery(url: string, queryToInject: string): string {
+  const resolvedUrl = new URL(url.replace(/%/g, '%25'), 'relative:///')
+  const { search, hash } = resolvedUrl
+  let pathname = cleanUrl(url)
+  pathname = isWindows ? slash(pathname) : pathname
+  return `${pathname}?${queryToInject}${search ? `&` + search.slice(1) : ''}${
+    hash ?? ''
+  }`
 }
 
 const timestampRE = /\bt=\d{13}&?\b/
 export function removeTimestampQuery(url: string): string {
   return url.replace(timestampRE, '').replace(trailingSeparatorRE, '')
+}
+
+export function ensureVolumeInPath(file: string): string {
+  return isWindows ? path.resolve(file) : file
 }
 
 export const queryRE = /\?.*$/s

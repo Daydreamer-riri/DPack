@@ -4,6 +4,7 @@ import type {
   ServerResponse,
 } from 'node:http'
 import getEtag from 'etag'
+import type { SourceMap } from 'rollup'
 
 const alias: Record<string, string | undefined> = {
   js: 'application/javascript',
@@ -16,7 +17,7 @@ export interface SendOptions {
   etag?: string
   cacheControl?: string
   headers?: OutgoingHttpHeaders
-  map?: null
+  map?: SourceMap | null
 }
 
 export function send(
@@ -50,6 +51,13 @@ export function send(
       res.setHeader(name, headers[name]!)
     }
   }
+
+  // inject source map reference
+  // if (map && map.mappings) {
+  //   if (type === 'js' || type === 'css') {
+  //     content = getCodeWithSourcemap(type, content.toString(), map)
+  //   }
+  // }
 
   res.statusCode = 200
   res.end(content)

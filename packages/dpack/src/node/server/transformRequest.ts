@@ -87,6 +87,8 @@ async function doTransform(
   }
 
   const id = (await pluginContainer.resolvedId(url, undefined))?.id || url
+  // const id =
+  //   (await pluginContainer.resolvedId(url, undefined))?.id || config.root + url
 
   const result = loadAndTransform(id, url, server, options)
 

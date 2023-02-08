@@ -1,6 +1,8 @@
 import type { HookHandler, Plugin } from '../plugin'
 import type { PluginHookUtils, ResolvedConfig } from '../config'
 import { importAnalysisPlugin } from './importAnalysis'
+import { resolvePlugin } from './resolve'
+import { loadFallbackPlugin } from './loadFallback'
 
 // export function createPluginHookUtils(
 //   plugins: readonly Plugin[],
@@ -39,10 +41,19 @@ export async function resolvePlugins(
   // prePlugins: Plugin[],
   // normalPlugins: Plugin[],
   // postPlugins: Plugin[],
-) {
+): Promise<Plugin[]> {
   const isBuild = config.command === 'build'
 
-  return [...(isBuild ? [] : [importAnalysisPlugin(config)])]
+  return [
+    resolvePlugin({
+      ...config.resolve,
+      root: config.root,
+      isProduction: false,
+      // isProduction: config.isProduction,
+      isBuild,
+      asSrc: true,
+    }),
+  ]
 }
 
 export function createPluginHookUtils(

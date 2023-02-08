@@ -1,6 +1,14 @@
 import type { OutputBundle, OutputChunk } from 'rollup'
 import { DpackDevServer } from '../server'
 
+const htmlProxyRE = /\?html-proxy=?(?:&inline-css)?&index=(\d+)\.(js|css)$/
+const htmlLangRE = /\.(?:html|htm)$/
+
+export const isHTMLProxy = (id: string): boolean => htmlProxyRE.test(id)
+
+export const isHTMLRequest = (request: string): boolean =>
+  htmlLangRE.test(request)
+
 export interface HtmlTagDescriptor {
   tag: string
   attrs?: Record<string, string | boolean | undefined>

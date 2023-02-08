@@ -378,7 +378,7 @@ export async function createServer(
     middlewares.use(indexHtmlMiddleware(server))
   }
 
-  middlewares.use(transformMiddleware(server, config))
+  middlewares.use(transformMiddleware(server))
 
   return server
 }

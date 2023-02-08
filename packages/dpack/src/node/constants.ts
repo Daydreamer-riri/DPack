@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs'
+import path, { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const { version } = JSON.parse(
   readFileSync(new URL('../../package.json', import.meta.url)).toString(),
@@ -31,20 +33,44 @@ export const DEFAULT_EXTENSIONS = [
 ]
 
 export const DEFAULT_CONFIG_FILES = [
-  'vite.config.js',
-  'vite.config.mjs',
-  'vite.config.ts',
-  'vite.config.cjs',
-  'vite.config.mts',
-  'vite.config.cts',
+  'dpack.config.js',
+  'dpack.config.mjs',
+  'dpack.config.ts',
+  'dpack.config.cjs',
+  'dpack.config.mts',
+  'dpack.config.cts',
 ]
 
 export const CSS_LANGS_RE =
   /\.(css|less|sass|scss|styl|stylus|pcss|postcss|sss)(?:$|\?)/
 
+export const OPTIMIZABLE_ENTRY_RE = /\.[cm]?[jt]s$/
+
+export const SPECIAL_QUERY_RE = /[?&](?:worker|sharedworker|raw|url)\b/
+
+/**
+ * 用于解析fs路径的前缀，因为windows路径可能无法作为URL有效。
+ */
 export const FS_PREFIX = `/@fs/`
 
+/**
+ * 为已解析的Ids提供前缀，这些Ids不是有效的浏览器导入指定符。
+ */
 export const VALID_ID_PREFIX = `/@id/`
+
+export const CLIENT_PUBLIC_PATH = `/@dpack/client`
+export const ENV_PUBLIC_PATH = `/@dpack/env`
+export const NULL_BYTE_PLACEHOLDER = `__x00__`
+
+export const DPACK_PACKAGE_DIR = resolve(
+  // import.meta.url is `dist/node/constants.js` after bundle
+  fileURLToPath(import.meta.url),
+  '../../..',
+)
+
+export const CLIENT_ENTRY = resolve(DPACK_PACKAGE_DIR, 'dist/client/client.mjs')
+export const ENV_ENTRY = resolve(DPACK_PACKAGE_DIR, 'dist/client/env.mjs')
+export const CLIENT_DIR = path.dirname(CLIENT_ENTRY)
 
 export const wildcardHosts = new Set([
   '0.0.0.0',
@@ -52,4 +78,4 @@ export const wildcardHosts = new Set([
   '0000:0000:0000:0000:0000:0000:0000:0000',
 ])
 
-export const NULL_BYTE_PLACEHOLDER = `__x00__`
+export const DEP_VERSION_RE = /[?&](v=[\w.-]+)\b/
