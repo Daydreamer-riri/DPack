@@ -4,11 +4,14 @@ import dns from 'node:dns/promises'
 import os from 'node:os'
 import type { Server } from 'node:net'
 import { debug } from 'debug'
+import resolve from 'resolve'
 import {
   CLIENT_PUBLIC_PATH,
+  DEFAULT_EXTENSIONS,
   ENV_PUBLIC_PATH,
   FS_PREFIX,
   NULL_BYTE_PLACEHOLDER,
+  OPTIMIZABLE_ENTRY_RE,
   VALID_ID_PREFIX,
   wildcardHosts,
 } from './constants'
@@ -17,6 +20,8 @@ import type { ResolvedConfig } from './config'
 import type { ResolvedServerUrls } from './server'
 import { createFilter as _createFilter } from '@rollup/pluginutils'
 import type { FSWatcher } from 'dep-types/chokidar'
+import type { DepOptimizationConfig } from './optimizer'
+import { createHash } from 'node:crypto'
 
 /**
  * Inlined to keep `@rollup/pluginutils` in devDependencies
@@ -62,6 +67,52 @@ export const flattenId = (id: string): string =>
 
 export const normalizeId = (id: string): string =>
   id.replace(/(\s*>\s*)/g, ' > ')
+
+// export function isOptimizable(
+//   id: string,
+//   optimizeDeps: DepOptimizationConfig,
+// ): boolean {
+//   const { extensions } = optimizeDeps
+//   return (
+//     OPTIMIZABLE_ENTRY_RE.test(id) ||
+//     (extensions?.some((ext) => id.endsWith(ext)) ?? false)
+//   )
+// }
+
+export const bareImportRE = /^[\w@](?!.*:\/\/)/
+export const deepImportRE = /^([^@][^/]*)\/|^(@[^/]+\/[^/]+)\//
+
+export function resolveFrom(
+  id: string,
+  basedir: string,
+  preserveSymlinks = false,
+): string {
+  return resolve.sync(id, {
+    basedir,
+    paths: [],
+    extensions: DEFAULT_EXTENSIONS,
+    // necessary to work with pnpm
+    preserveSymlinks: preserveSymlinks || false,
+  })
+}
+
+/**
+ * like `resolveFrom` but supports resolving `>` path in `id`,
+ * for example: `foo > bar > baz`
+ */
+export function nestedResolveFrom(
+  id: string,
+  basedir: string,
+  preserveSymlinks = false,
+): string {
+  const pkgs = id.split('>').map((pkg) => pkg.trim())
+  try {
+    for (const pkg of pkgs) {
+      basedir = resolveFrom(pkg, basedir, preserveSymlinks)
+    }
+  } catch {}
+  return basedir
+}
 
 // set in bin/dpack.js
 const filter = process.env.DPACK_DEBUG_FILTER
@@ -216,6 +267,9 @@ export const cleanUrl = (url: string): string =>
 export const externalRE = /^(https?:)?\/\//
 export const isExternalUrl = (url: string): boolean => externalRE.test(url)
 
+export const dataUrlRE = /^\s*data:/i
+export const isDataUrl = (url: string): boolean => dataUrlRE.test(url)
+
 export async function getLocalhostAddressIfDiffersFromDNS(): Promise<
   string | undefined
 > {
@@ -356,6 +410,17 @@ function mergeConfigRecursively(
   return merged
 }
 
+const windowsDrivePathPrefixRE = /^[A-Za-z]:[/\\]/
+
+/**
+ * path.isAbsolute also returns true for drive relative paths on windows (e.g. /something)
+ * this function returns false for them but true for absolute paths (e.g. C:/something)
+ */
+export const isNonDriveRelativeAbsolutePath = (p: string): boolean => {
+  if (!isWindows) return p.startsWith('/')
+  return windowsDrivePathPrefixRE.test(p)
+}
+
 export function writeFile(
   filename: string,
   content: string | Uint8Array,
@@ -376,6 +441,48 @@ export function isFileReadable(filename: string): boolean {
   }
 }
 
+const splitFirstDirRE = /(.+?)[\\/](.+)/
+
+/**
+ * 删除每个文件和子目录。**给定的目录必须存在**。
+ * 传递一个可选的`skip`数组，以保留根目录下的文件。
+ */
+export function emptyDir(dir: string, skip?: string[]) {
+  const skipInDir: string[] = []
+  let nested: Map<string, string[]> | null = null
+  if (skip?.length) {
+    for (const file of skip) {
+      if (path.dirname(file) !== '.') {
+        const matched = file.match(splitFirstDirRE)
+        if (matched) {
+          nested ??= new Map()
+          const [, nestedDir, skipPath] = matched
+          let nestedSkip = nested.get(nestedDir)
+          if (!nestedSkip) {
+            nestedSkip = []
+            nested.set(nestedDir, nestedSkip)
+          }
+          if (!nestedSkip.includes(skipPath)) {
+            nestedSkip.push(skipPath)
+          }
+        }
+      } else {
+        skipInDir.push(file)
+      }
+    }
+  }
+  for (const file of fs.readdirSync(dir)) {
+    if (skipInDir.includes(file)) {
+      continue
+    }
+    if (nested?.has(file)) {
+      emptyDir(path.resolve(dir, file), nested.get(file))
+    } else {
+      fs.rmSync(path.resolve(dir, file), { recursive: true, force: true })
+    }
+  }
+}
+
 export function ensureWatchedFile(
   watcher: FSWatcher,
   file: string | null,
@@ -392,4 +499,8 @@ export function ensureWatchedFile(
     // resolve file to normalized system path
     watcher.add(path.resolve(file))
   }
+}
+
+export function getHash(text: Buffer | string): string {
+  return createHash('sha256').update(text).digest('hex').substring(0, 8)
 }
