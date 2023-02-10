@@ -86,7 +86,7 @@ async function doTransform(
     return cached
   }
 
-  const id = (await pluginContainer.resolvedId(url, undefined))?.id || url
+  const id = (await pluginContainer.resolveId(url, undefined))?.id || url
   // const id =
   //   (await pluginContainer.resolvedId(url, undefined))?.id || config.root + url
 

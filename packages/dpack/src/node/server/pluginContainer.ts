@@ -41,7 +41,7 @@ export interface PluginContainer {
   options: InputOptions
   getModuleInfo(id: string): ModuleInfo | null
   buildStart(options: InputOptions): Promise<void>
-  resolvedId(
+  resolveId(
     id: string,
     importer?: string,
     options?: {
@@ -196,7 +196,7 @@ export async function createPluginContainer(
     }
 
     async resolve(id: string, importer?: string) {
-      let out = await container.resolvedId(id, importer)
+      let out = await container.resolveId(id, importer)
       if (typeof out === 'string') out = { id: out }
       return out as ResolvedId | null
     }
@@ -331,7 +331,7 @@ export async function createPluginContainer(
       )
     },
 
-    async resolvedId(
+    async resolveId(
       rawId: string,
       importer = join(root, 'index.html'),
       options,
