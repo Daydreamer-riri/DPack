@@ -34,6 +34,9 @@ importers:
       tsx: registry.npmmirror.com/tsx/3.12.1
       typescript: registry.npmmirror.com/typescript/4.9.4
 
+  example:
+    specifiers: {}
+
   example/base:
     specifiers:
       '@dpack/dpack': ^0.0.1
@@ -49,6 +52,27 @@ importers:
     devDependencies:
       '@dpack/dpack': link:../../packages/dpack
 
+  example/external:
+    specifiers:
+      '@dpack/dpack': ^0.0.1
+      '@dpack/test-dep-that-imports': file:./dep-that-imports
+      slash3: npm:slash@^3.0.0
+      slash5: npm:slash@^5.0.0
+    dependencies:
+      '@dpack/test-dep-that-imports': file:example/external/dep-that-imports
+    devDependencies:
+      '@dpack/dpack': link:../../packages/dpack
+      slash3: /slash/3.0.0
+      slash5: /slash/5.0.0
+
+  example/external/dep-that-imports:
+    specifiers:
+      slash3: npm:slash@^3.0.0
+      slash5: npm:slash@^5.0.0
+    dependencies:
+      slash3: /slash/3.0.0
+      slash5: /slash/5.0.0
+
   packages/dpack:
     specifiers:
       '@rollup/plugin-alias': ^4.0.2
@@ -61,6 +85,7 @@ importers:
       '@types/connect': ^3.4.35
       '@types/connect-history-api-fallback': ^1.3.5
       '@types/etag': ^1.8.1
+      '@types/resolve': ^1.20.2
       acorn: ^8.8.2
       cac: ^6.7.14
       chokidar: ^3.5.3
@@ -71,9 +96,11 @@ importers:
       es-module-lexer: ^1.1.1
       esbuild: 0.16.13
       etag: ^1.8.1
+      fast-glob: ^3.2.12
       magic-string: ^0.27.0
       picomatch: ^2.3.1
       resolve: 1.22.1
+      resolve.exports: ^1.1.0
       types: link:./types
       ws: ^8.12.0
     dependencies:
@@ -90,6 +117,7 @@ importers:
       '@types/connect': 3.4.35
       '@types/connect-history-api-fallback': 1.3.5
       '@types/etag': 1.8.1
+      '@types/resolve': 1.20.2
       acorn: 8.8.2
       cac: 6.7.14
       chokidar: registry.npmmirror.com/chokidar/3.5.3
@@ -99,8 +127,10 @@ importers:
       dep-types: link:src/types
       es-module-lexer: 1.1.1
       etag: 1.8.1
+      fast-glob: 3.2.12
       magic-string: 0.27.0
       picomatch: 2.3.1
+      resolve.exports: 1.1.1
       types: link:types
       ws: registry.npmmirror.com/ws/8.12.0
 
@@ -966,11 +996,16 @@ packages:
     dependencies:
       has: 1.0.3
 
+  /is-extglob/2.1.1:
+    resolution: {integrity: sha512-SbKbANkN603Vi4jEZv49LeVJMn4yGwsbzZworEoyEiutsN3nJYdbO36zfhGJ6QEDpOZIFkDtnq5JRxmvl3jsoQ==}
+    engines: {node: '>=0.10.0'}
+    dev: true
+
   /is-glob/4.0.3:
     resolution: {integrity: sha512-xelSayHH36ZgE7ZWhli7pW34hNbNl8Ojv5KVmkJD4hBdD3th8Tfk9vYasLM+mXWOZhFkgZfxhLSnrwRr4elSSg==}
     engines: {node: '>=0.10.0'}
     dependencies:
-      is-extglob: registry.npmmirror.com/is-extglob/2.1.1
+      is-extglob: 2.1.1
     dev: true
 
   /is-module/1.0.0:
@@ -1086,6 +1121,11 @@ packages:
       loose-envify: 1.4.0
     dev: false
 
+  /resolve.exports/1.1.1:
+    resolution: {integrity: sha512-/NtpHNDN7jWhAaQ9BvBUYZ6YTXsRBgfqWFWP7BZBaoMJO/I3G5OFzvTuWNlZC3aPjins1F+TNrLKsGbH4rfsRQ==}
+    engines: {node: '>=10'}
+    dev: true
+
   /resolve/1.22.1:
     resolution: {integrity: sha512-nBpuuYuY5jFsli/JIs1oldw6fOQCBioohqWZg/2hiaOybXOft4lonv85uDOKXdf8rhyK159cxU5cDcK/NKk8zw==}
     hasBin: true
@@ -1120,10 +1160,18 @@ packages:
       queue-microtask: 1.2.3
     dev: true
 
+  /slash/3.0.0:
+    resolution: {integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==}
+    engines: {node: '>=8'}
+
   /slash/4.0.0:
     resolution: {integrity: sha512-3dOsAHXXUkQTpOYcoAxLIorMTp4gIQr5IW3iVb7A7lFIp0VHhnynm9izx6TssdrIcVIESAlVjtnO2K8bg+Coew==}
     engines: {node: '>=12'}
     dev: true
+
+  /slash/5.0.0:
+    resolution: {integrity: sha512-n6KkmvKS0623igEVj3FF0OZs1gYYJ0o0Hj939yc1fyxl2xt+xYpLnzJB6xBSqOfV9ZFLEWodBBN/heZJahuIJQ==}
+    engines: {node: '>=14.16'}
 
   /statuses/1.5.0:
     resolution: {integrity: sha512-OpZ3zP+jT1PI7I8nemJX4AKmAX070ZkYPVWV/AaKTJl+tXCTGyVdC1a4SL8RUQYEwk/f34ZX8UTykN68FwrqAA==}
@@ -1158,6 +1206,15 @@ packages:
   /wrappy/1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
     dev: true
+
+  file:example/external/dep-that-imports:
+    resolution: {directory: example/external/dep-that-imports, type: directory}
+    name: '@dpack/test-dep-that-imports'
+    version: 0.0.0
+    dependencies:
+      slash3: /slash/3.0.0
+      slash5: /slash/5.0.0
+    dev: false
 
   registry.npmmirror.com/@babel/helper-string-parser/7.19.4:
     resolution: {integrity: sha512-nHtDoQcuqFmwYNYPz3Rah5ph2p8PFeFCsZk9A/48dPc/rGocJ5J3hAAZ7pb76VWX3fZKu+uEr/FhH5jLx7umrw==, registry: https://registry.npm.taobao.org/, tarball: https://registry.npmmirror.com/@babel/helper-string-parser/-/helper-string-parser-7.19.4.tgz}
