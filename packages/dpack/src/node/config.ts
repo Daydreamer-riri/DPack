@@ -34,9 +34,12 @@ import {
 } from './build'
 import { ESBUILD_MODULES_TARGET } from './constants'
 import { resolvePlugins } from './plugins'
-import type { ResolveOptions } from './plugins/resolve'
+import type { InternalResolveOptions, ResolveOptions } from './plugins/resolve'
 import type { DepOptimizationConfig, DepOptimizationOptions } from './optimizer'
 import type { PackageCache } from './packages'
+import type { PluginContainer } from './server/pluginContainer'
+import { createPluginContainer } from './server/pluginContainer'
+import { resolvePlugin } from './plugins/resolve'
 
 export interface ConfigEnv {
   command: 'build' | 'serve'
@@ -166,12 +169,13 @@ export type ResolvedConfig = Readonly<
     server: ResolvedServerOptions
     build: ResolvedBuildOptions
     resolve: Required<ResolveOptions>
+    logger: Logger
+    createResolver: (options?: Partial<InternalResolveOptions>) => ResolveFn
     optimizeDeps: DepOptimizationOptions
     packageCache: PackageCache
     // preview: ResolvedPreviewOptions
     // ssr: ResolvedSSROptions
     // assetsInclude: (file: string) => boolean
-    logger: Logger
   } & PluginHookUtils
 >
 
@@ -287,7 +291,47 @@ export async function resolveConfig(
       ? createFilter(config.assetsInclude)
       : () => false
 
-  // createResolver TODO:
+  // create an internal resolver to be used in special scenarios, e.g.
+  // optimizer & handling css @imports
+  const createResolver: ResolvedConfig['createResolver'] = (options) => {
+    let aliasContainer: PluginContainer | undefined
+    let resolverContainer: PluginContainer | undefined
+    return async (id, importer, aliasOnly, ssr) => {
+      let container: PluginContainer
+      if (aliasOnly) {
+        container =
+          aliasContainer ||
+          (aliasContainer = await createPluginContainer({
+            ...resolved,
+            // plugins: [aliasPlugin({ entries: resolved.resolve.alias })],
+          }))
+      } else {
+        container =
+          resolverContainer ||
+          (resolverContainer = await createPluginContainer({
+            ...resolved,
+            plugins: [
+              // aliasPlugin({ entries: resolved.resolve.alias }),
+              resolvePlugin({
+                ...resolved.resolve,
+                root: resolvedRoot,
+                isProduction,
+                isBuild: command === 'build',
+                asSrc: true,
+                preferRelative: false,
+                tryIndex: true,
+                ...options,
+              }),
+            ],
+          }))
+      }
+      return (
+        await container.resolveId(id, importer, {
+          scan: options?.scan,
+        })
+      )?.id
+    }
+  }
 
   const { publicDir } = config
   const resolvedPublicDir =
@@ -333,6 +377,7 @@ export async function resolveConfig(
     server,
     build: resolvedBuildOptions,
     logger,
+    createResolver,
     packageCache: new Map(),
     optimizeDeps: {
       disabled: 'build',
