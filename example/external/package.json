@@ -1,0 +1,16 @@
+{
+  "name": "@dpack/test-external",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "dpack"
+  },
+  "dependencies": {
+    "@dpack/test-dep-that-imports": "file:./dep-that-imports"
+  },
+  "devDependencies": {
+    "slash3": "npm:slash@^3.0.0",
+    "slash5": "npm:slash@^5.0.0",
+    "@dpack/dpack": "^0.0.1"
+  }
+}
