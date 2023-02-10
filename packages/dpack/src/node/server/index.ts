@@ -1,6 +1,11 @@
 import type * as net from 'node:net'
 import type { Connect } from 'dep-types/connect'
-import { InlineConfig, resolveConfig, ResolvedConfig } from '../config'
+import {
+  InlineConfig,
+  isDepsOptimizerEnabled,
+  resolveConfig,
+  ResolvedConfig,
+} from '../config'
 import {
   CommonServerOptions,
   httpServerStart,
@@ -37,6 +42,7 @@ import { transformMiddleware } from './middlewares/transform'
 import { optimizeDeps } from '../optimizer'
 import type { PluginContainer } from './pluginContainer'
 import { createPluginContainer } from './pluginContainer'
+import { initDepsOptimizer } from '../optimizer'
 
 export interface ServerOptions extends CommonServerOptions {
   /**
@@ -276,7 +282,7 @@ export async function createServer(
   const watcher = chokidar.watch(path.resolve(root)) // TODO:options
 
   const moduleGraph: ModuleGraph = new ModuleGraph((url) =>
-    container.resolvedId(url, undefined),
+    container.resolveId(url, undefined),
   )
 
   const container = await createPluginContainer(config, moduleGraph, watcher)
@@ -369,6 +375,8 @@ export async function createServer(
 
   // Internal middlewares ----------------------------------------------
 
+  middlewares.use(transformMiddleware(server))
+
   // html fallback
   if (config.appType === 'spa' || config.appType === 'mpa') {
     middlewares.use(htmlFallbackMiddleware(root, config.appType === 'spa'))
@@ -378,7 +386,22 @@ export async function createServer(
     middlewares.use(indexHtmlMiddleware(server))
   }
 
-  middlewares.use(transformMiddleware(server))
+  let initingServer: Promise<void> | undefined
+  let serverInited = false
+  const initServer = async () => {
+    if (serverInited) return
+    if (initingServer) return initingServer
+    initingServer = (async function () {
+      await container.buildStart({})
+      if (isDepsOptimizerEnabled(config)) {
+        await initDepsOptimizer(config, server)
+      }
+      initingServer = void 0
+      serverInited = true
+    })()
+
+    return initingServer
+  }
 
   return server
 }
