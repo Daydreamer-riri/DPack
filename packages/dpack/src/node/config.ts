@@ -35,6 +35,8 @@ import {
 import { ESBUILD_MODULES_TARGET } from './constants'
 import { resolvePlugins } from './plugins'
 import type { ResolveOptions } from './plugins/resolve'
+import type { DepOptimizationConfig, DepOptimizationOptions } from './optimizer'
+import type { PackageCache } from './packages'
 
 export interface ConfigEnv {
   command: 'build' | 'serve'
@@ -106,6 +108,10 @@ export interface UserConfig {
   server?: ServerOptions
   build?: BuildOptions
   // preview?: PreviewOptions
+  /**
+   * Dep optimization options
+   */
+  optimizeDeps?: DepOptimizationOptions
   // ssr?: SSROptions
   /**
    * Log level.
@@ -160,6 +166,8 @@ export type ResolvedConfig = Readonly<
     server: ResolvedServerOptions
     build: ResolvedBuildOptions
     resolve: Required<ResolveOptions>
+    optimizeDeps: DepOptimizationOptions
+    packageCache: PackageCache
     // preview: ResolvedPreviewOptions
     // ssr: ResolvedSSROptions
     // assetsInclude: (file: string) => boolean
@@ -294,6 +302,8 @@ export async function resolveConfig(
 
   const middlewareMode = config?.server?.middlewareMode
 
+  const optimizeDeps = config.optimizeDeps || {}
+
   const BADE_URL = resolvedBase
 
   // worker TODO:
@@ -323,6 +333,15 @@ export async function resolveConfig(
     server,
     build: resolvedBuildOptions,
     logger,
+    packageCache: new Map(),
+    optimizeDeps: {
+      disabled: 'build',
+      ...optimizeDeps,
+      esbuildOptions: {
+        preserveSymlinks: resolveOptions.preserveSymlinks,
+        ...optimizeDeps.esbuildOptions,
+      },
+    },
     appType: config.appType ?? 'spa',
     getSortedPluginHooks: undefined!,
     getSortedPlugins: undefined!,
@@ -439,3 +458,18 @@ function bundleConfigFile(resolvedPath: string, isESM: boolean): any {
 }
 
 function loadConfigFromBundledFile(a: string, b: string, c: boolean): any {}
+
+export function getDepOptimizationConfig(
+  config: ResolvedConfig,
+): DepOptimizationConfig {
+  return config.optimizeDeps
+}
+export function isDepsOptimizerEnabled(config: ResolvedConfig): boolean {
+  const { command } = config
+  const { disabled } = getDepOptimizationConfig(config)
+  return !(
+    disabled === true ||
+    (command === 'build' && disabled === 'build') ||
+    (command === 'serve' && disabled === 'dev')
+  )
+}
