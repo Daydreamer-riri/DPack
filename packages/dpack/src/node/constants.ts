@@ -40,6 +40,7 @@ export const DEFAULT_CONFIG_FILES = [
   'dpack.config.mts',
   'dpack.config.cts',
 ]
+export const JS_TYPES_RE = /\.(?:j|t)sx?$|\.mjs$/
 
 export const CSS_LANGS_RE =
   /\.(css|less|sass|scss|styl|stylus|pcss|postcss|sss)(?:$|\?)/
@@ -71,6 +72,40 @@ export const DPACK_PACKAGE_DIR = resolve(
 export const CLIENT_ENTRY = resolve(DPACK_PACKAGE_DIR, 'dist/client/client.mjs')
 export const ENV_ENTRY = resolve(DPACK_PACKAGE_DIR, 'dist/client/env.mjs')
 export const CLIENT_DIR = path.dirname(CLIENT_ENTRY)
+
+export const KNOWN_ASSET_TYPES = [
+  // images
+  'png',
+  'jpe?g',
+  'jfif',
+  'pjpeg',
+  'pjp',
+  'gif',
+  'svg',
+  'ico',
+  'webp',
+  'avif',
+
+  // media
+  'mp4',
+  'webm',
+  'ogg',
+  'mp3',
+  'wav',
+  'flac',
+  'aac',
+
+  // fonts
+  'woff2?',
+  'eot',
+  'ttf',
+  'otf',
+
+  // other
+  'webmanifest',
+  'pdf',
+  'txt',
+]
 
 export const wildcardHosts = new Set([
   '0.0.0.0',
