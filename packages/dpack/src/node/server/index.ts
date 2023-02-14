@@ -42,7 +42,7 @@ import { transformMiddleware } from './middlewares/transform'
 import { optimizeDeps } from '../optimizer'
 import type { PluginContainer } from './pluginContainer'
 import { createPluginContainer } from './pluginContainer'
-import { initDepsOptimizer } from '../optimizer'
+// import { initDepsOptimizer } from '../optimizer'
 
 export interface ServerOptions extends CommonServerOptions {
   /**
@@ -109,6 +109,11 @@ export interface FileSystemServeOptions {
    */
   deny?: string[]
 }
+
+export type ServerHook = (
+  this: void,
+  server: DpackDevServer,
+) => (() => void) | void | Promise<(() => void) | void>
 
 export interface DpackDevServer {
   /**
@@ -262,7 +267,6 @@ export async function createServer(
   // const { middlewareMode } = serverConfig
   // TODO:
   const config = await resolveConfig(inlineConfig, 'serve')
-  // console.log('Config', config)
   const { root, server: serverConfig } = config
   const middlewareMode = false
   const httpsOptions = await resolveHttpsConfig(config.server.https)
@@ -373,6 +377,11 @@ export async function createServer(
 
   server.transformIndexHtml = createDevHtmlTransformFn(server)
 
+  const postHooks: ((() => void) | void)[] = []
+  for (const hook of config.getSortedPluginHooks('configureServer')) {
+    postHooks.push(await hook(server))
+  }
+
   // Internal middlewares ----------------------------------------------
 
   middlewares.use(transformMiddleware(server))
@@ -381,6 +390,9 @@ export async function createServer(
   if (config.appType === 'spa' || config.appType === 'mpa') {
     middlewares.use(htmlFallbackMiddleware(root, config.appType === 'spa'))
   }
+
+  // 这是在html中间件之前应用的，以便用户中间件可以提供自定义内容而不是index.html。
+  postHooks.forEach((fn) => fn && fn())
 
   if (config.appType === 'spa' || config.appType === 'mpa') {
     middlewares.use(indexHtmlMiddleware(server))
@@ -394,7 +406,7 @@ export async function createServer(
     initingServer = (async function () {
       await container.buildStart({})
       if (isDepsOptimizerEnabled(config)) {
-        await initDepsOptimizer(config, server)
+        // await initDepsOptimizer(config, server)
       }
       initingServer = void 0
       serverInited = true

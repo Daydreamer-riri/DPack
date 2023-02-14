@@ -142,18 +142,6 @@ export function transformMiddleware(
       return next(e)
     }
 
-    // 因为预构建我们配置生成了 map 文件所以同样要处理下 map 文件
-    if (url.endsWith('.js') || url.endsWith('.map')) {
-      const jsPath = path.join(root, url)
-      const code = fs.readFileSync(jsPath, 'utf-8')
-      res.setHeader('Content-Type', 'application/javascript')
-      res.statusCode = 200
-      // map 文件不需要分析 import 语句
-      const transformCode = url.endsWith('.map')
-        ? code
-        : await importAnalysis.transform(code)
-      return res.end(transformCode)
-    }
     next()
   }
 }

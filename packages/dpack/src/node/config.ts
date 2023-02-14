@@ -33,7 +33,7 @@ import {
   ResolvedBuildOptions,
 } from './build'
 import { ESBUILD_MODULES_TARGET } from './constants'
-import { resolvePlugins } from './plugins'
+import { createPluginHookUtils, resolvePlugins } from './plugins'
 import type { InternalResolveOptions, ResolveOptions } from './plugins/resolve'
 import type { DepOptimizationConfig, DepOptimizationOptions } from './optimizer'
 import type { PackageCache } from './packages'
@@ -398,6 +398,7 @@ export async function resolveConfig(
   }
 
   ;(resolved.plugins as Plugin[]) = await resolvePlugins(resolved)
+  Object.assign(resolved, createPluginHookUtils(resolved.plugins))
 
   return resolved
 }

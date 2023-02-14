@@ -189,7 +189,47 @@ export function resolvePlugin(resolveOptions: InternalResolveOptions): Plugin {
         id.startsWith('.') ||
         ((preferRelative || importer?.endsWith('.html')) && /^\w/.test(id))
       ) {
-        // TODO:
+        const basedir = importer ? path.dirname(importer) : process.cwd()
+        const fsPath = path.resolve(basedir, id)
+
+        // TODO: optimized
+        const normalizedFsPath = normalizePath(fsPath)
+        // if (depsOptimizer?.isOptimizedDepFile(normalizedFsPath)) {
+        //   // Optimized files could not yet exist in disk, resolve to the full path
+        //   // Inject the current browserHash version if the path doesn't have one
+        //   if (!normalizedFsPath.match(DEP_VERSION_RE)) {
+        //     const browserHash = optimizedDepInfoFromFile(
+        //       depsOptimizer.metadata,
+        //       normalizedFsPath,
+        //     )?.browserHash
+        //     if (browserHash) {
+        //       return injectQuery(normalizedFsPath, `v=${browserHash}`)
+        //     }
+        //   }
+        //   return normalizedFsPath
+        // }
+
+        // if (
+        //   targetWeb &&
+        //   (res = tryResolveBrowserMapping(fsPath, importer, options, true))
+        // ) {
+        //   return res
+        // }
+
+        if ((res = tryFsResolve(fsPath, options))) {
+          // res = ensureVersionQuery(res)
+          // isDebug &&
+          //   debug(`[relative] ${colors.cyan(id)} -> ${colors.dim(res)}`)
+          const pkg = importer != null && idToPkgMap.get(importer)
+          if (pkg) {
+            idToPkgMap.set(res, pkg)
+            return {
+              id: res,
+              moduleSideEffects: pkg.hasSideEffects(res),
+            }
+          }
+          return res
+        }
       }
 
       // absolute fs paths
@@ -216,7 +256,6 @@ export function resolvePlugin(resolveOptions: InternalResolveOptions): Plugin {
 
       // 裸包导入，执行节点解析
       if (bareImportRE.test(id)) {
-        console.log('id', id)
         const external = options.shouldExternalize?.(id)
         if (
           !external &&

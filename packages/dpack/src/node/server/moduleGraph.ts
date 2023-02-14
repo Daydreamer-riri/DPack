@@ -21,10 +21,12 @@ export class ModuleNode {
   lastHMRTimestamp = 0
   lastInvalidationTimestamp = 0
 
-  constructor(url: string) {
+  constructor(url: string, setIsSelfAccepting = true) {
     this.url = url
     this.type = isDirectCSSRequest(url) ? 'css' : 'js'
-    this.isSelfAccepting = false
+    if (setIsSelfAccepting) {
+      this.isSelfAccepting = false
+    }
   }
 }
 
@@ -53,11 +55,14 @@ export class ModuleGraph {
     return this.idToModuleMap.get(removeTimestampQuery(id))
   }
 
-  async ensureEntryFromUrl(rawUrl: string): Promise<ModuleNode> {
+  async ensureEntryFromUrl(
+    rawUrl: string,
+    setIsSelfAccepting = true,
+  ): Promise<ModuleNode> {
     const [url, resolvedId, meta] = await this.resolveUrl(rawUrl)
     let mod = this.idToModuleMap.get(resolvedId)
     if (!mod) {
-      mod = new ModuleNode(url)
+      mod = new ModuleNode(url, setIsSelfAccepting)
       if (meta) mod.meta = meta
       this.urlToModuleMap.set(url, mod)
       mod.id = resolvedId

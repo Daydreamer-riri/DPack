@@ -361,6 +361,10 @@ export async function createPluginContainer(
         })
         if (!result) continue
 
+        // config.logger.info(
+        //   `rawId: ${rawId} ${colors.dim(colors.bold(`resolveID: `))} ${result}`,
+        // )
+
         if (typeof result === 'string') {
           id = result
         } else {

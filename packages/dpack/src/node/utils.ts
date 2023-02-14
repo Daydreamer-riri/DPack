@@ -22,6 +22,9 @@ import { createFilter as _createFilter } from '@rollup/pluginutils'
 import type { FSWatcher } from 'dep-types/chokidar'
 import type { DepOptimizationConfig } from './optimizer'
 import { createHash } from 'node:crypto'
+import colors from 'picocolors'
+import type MagicString from 'magic-string'
+import type { TransformResult } from './server/transformRequest'
 
 /**
  * Inlined to keep `@rollup/pluginutils` in devDependencies
@@ -67,6 +70,13 @@ export const flattenId = (id: string): string =>
 
 export const normalizeId = (id: string): string =>
   id.replace(/(\s*>\s*)/g, ' > ')
+
+export function moduleListContains(
+  moduleList: string[] | undefined,
+  id: string,
+): boolean | undefined {
+  return moduleList?.some((m) => m === id || id.startsWith(m + '/'))
+}
 
 // export function isOptimizable(
 //   id: string,
@@ -151,6 +161,27 @@ const range: number = 2
 export function pad(source: string, n = 2): string {
   const lines = source.split(splitRE)
   return lines.map((l) => ` `.repeat(n) + l).join(`\n`)
+}
+
+export function prettifyUrl(url: string, root: string): string {
+  url = removeTimestampQuery(url)
+  const isAbsoluteFile = url.startsWith(root)
+  if (isAbsoluteFile || url.startsWith(FS_PREFIX)) {
+    let file = path.relative(root, isAbsoluteFile ? url : fsPathFromId(url))
+    const seg = file.split('/')
+    const npmIndex = seg.indexOf(`node_modules`)
+    const isSourceMap = file.endsWith('.map')
+    if (npmIndex > 0) {
+      file = seg[npmIndex + 1]
+      if (file.startsWith('@')) {
+        file = `${file}/${seg[npmIndex + 2]}`
+      }
+      file = `npm: ${colors.dim(file)}${isSourceMap ? ` (source map)` : ``}`
+    }
+    return colors.dim(file)
+  } else {
+    return colors.dim(url)
+  }
 }
 
 export function isObject(value: unknown): value is Record<string, any> {
@@ -410,6 +441,33 @@ function mergeConfigRecursively(
   return merged
 }
 
+/**
+ * Transforms transpiled code result where line numbers aren't altered,
+ * so we can skip sourcemap generation during dev
+ */
+export function transformStableResult(
+  s: MagicString,
+  id: string,
+  config: ResolvedConfig,
+): TransformResult {
+  return {
+    code: s.toString(),
+    map:
+      config.command === 'build'
+        ? s.generateMap({ hires: true, source: id })
+        : null,
+  }
+}
+
+// strip UTF-8 BOM
+export function stripBomTag(content: string): string {
+  if (content.charCodeAt(0) === 0xfeff) {
+    return content.slice(1)
+  }
+
+  return content
+}
+
 const windowsDrivePathPrefixRE = /^[A-Za-z]:[/\\]/
 
 /**
@@ -503,4 +561,25 @@ export function ensureWatchedFile(
 
 export function getHash(text: Buffer | string): string {
   return createHash('sha256').update(text).digest('hex').substring(0, 8)
+}
+
+export function joinUrlSegments(a: string, b: string): string {
+  if (!a || !b) {
+    return a || b || ''
+  }
+  if (a.endsWith('/')) {
+    a = a.substring(0, a.length - 1)
+  }
+  if (!b.startsWith('/')) {
+    b = '/' + b
+  }
+  return a + b
+}
+
+export function stripBase(path: string, base: string): string {
+  if (path === base) {
+    return '/'
+  }
+  const devBase = base.endsWith('/') ? base : base + '/'
+  return path.replace(RegExp('^' + devBase), '/')
 }

@@ -16,7 +16,7 @@ import {
   lookupFile,
   normalizePath,
 } from '../utils'
-export { initDepsOptimizer, getDepsOptimizer } from './opimizer'
+export { getDepsOptimizer } from './opimizer'
 
 export const debuggerDpackDeps = createDebugger('dpack:deps')
 const debug = debuggerDpackDeps
@@ -272,7 +272,8 @@ export function loadCachedDepOptimizationMetadata(
 export async function discoverProjectDependencies(
   config: ResolvedConfig,
 ): Promise<Record<string, string>> {
-  const { deps, missing } = await scanImports(config)
+  const [deps, missing]: any = [{}, {}]
+  // const { deps, missing } = await scanImports(config)
 
   const missingIds = Object.keys(missing)
   if (missingIds.length) {
@@ -433,6 +434,33 @@ export async function extractExportsData(
   return exportsData
 }
 
+function needsInterop(
+  exportsData: ExportsData,
+  output?: { exports: string[] },
+): boolean {
+  const { hasImports, exports } = exportsData
+  // 没有ESM语法 - likely CJS or UMD
+  if (!exports.length && !hasImports) {
+    return true
+  }
+
+  // if (output) {
+  //   // if a peer dependency used require() on an ESM dependency, esbuild turns the
+  //   // ESM dependency's entry chunk into a single default export... detect
+  //   // such cases by checking exports mismatch, and force interop.
+  //   const generatedExports: string[] = output.exports
+
+  //   if (
+  //     !generatedExports ||
+  //     (isSingleDefaultExport(generatedExports) &&
+  //       !isSingleDefaultExport(exports))
+  //   ) {
+  //     return true
+  //   }
+  // }
+  return false
+}
+
 const lockfileFormats = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']
 
 export function getDepHash(config: ResolvedConfig): string {
@@ -480,4 +508,17 @@ export function newDepOptimizationProcessing(): DepOptimizationProcessing {
     resolve = _resolve
   }) as Promise<void>
   return { promise, resolve: resolve! }
+}
+
+export async function optimizedDepNeedsInterop(
+  metadata: DepOptimizationMetadata,
+  file: string,
+  config: ResolvedConfig,
+): Promise<boolean | undefined> {
+  const depInfo = optimizedDepInfoFromFile(metadata, file)
+  if (depInfo?.src && depInfo.needsInterop === undefined) {
+    depInfo.exportsData ??= extractExportsData(depInfo.src, config)
+    depInfo.needsInterop = needsInterop(await depInfo.exportsData)
+  }
+  return depInfo?.needsInterop
 }
