@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import dns from 'node:dns/promises'
 import os from 'node:os'
 import type { Server } from 'node:net'
+import { createHash } from 'node:crypto'
+import { promisify } from 'node:util'
 import { debug } from 'debug'
 import resolve from 'resolve'
 import {
@@ -21,7 +23,6 @@ import type { ResolvedServerUrls } from './server'
 import { createFilter as _createFilter } from '@rollup/pluginutils'
 import type { FSWatcher } from 'dep-types/chokidar'
 import type { DepOptimizationConfig } from './optimizer'
-import { createHash } from 'node:crypto'
 import colors from 'picocolors'
 import type MagicString from 'magic-string'
 import type { TransformResult } from './server/transformRequest'
@@ -78,16 +79,9 @@ export function moduleListContains(
   return moduleList?.some((m) => m === id || id.startsWith(m + '/'))
 }
 
-// export function isOptimizable(
-//   id: string,
-//   optimizeDeps: DepOptimizationConfig,
-// ): boolean {
-//   const { extensions } = optimizeDeps
-//   return (
-//     OPTIMIZABLE_ENTRY_RE.test(id) ||
-//     (extensions?.some((ext) => id.endsWith(ext)) ?? false)
-//   )
-// }
+export function isOptimizable(id: string): boolean {
+  return OPTIMIZABLE_ENTRY_RE.test(id)
+}
 
 export const bareImportRE = /^[\w@](?!.*:\/\/)/
 export const deepImportRE = /^([^@][^/]*)\/|^(@[^/]+\/[^/]+)\//
@@ -301,6 +295,9 @@ export const isExternalUrl = (url: string): boolean => externalRE.test(url)
 export const dataUrlRE = /^\s*data:/i
 export const isDataUrl = (url: string): boolean => dataUrlRE.test(url)
 
+export const virtualModuleRE = /^virtual-module:.*/
+export const virtualModulePrefix = 'virtual-module:'
+
 export async function getLocalhostAddressIfDiffersFromDNS(): Promise<
   string | undefined
 > {
@@ -375,6 +372,10 @@ export function fsPathFromId(id: string): string {
     ? fsPath
     : `/${fsPath}`
 }
+
+export const multilineCommentsRE = /\/\*[^*]*\*+(?:[^/*][^*]*\*+)*\//g
+export const singlelineCommentsRE = /\/\/.*/g
+export const requestQuerySplitRE = /\?(?!.*[/|}])/
 
 export function arraify<T>(target: T | T[]): T[] {
   return Array.isArray(target) ? target : [target]
@@ -541,6 +542,14 @@ export function emptyDir(dir: string, skip?: string[]) {
   }
 }
 
+export const removeDir = isWindows
+  ? promisify(gracefulRemoveDir)
+  : function removeDirSync(dir: string) {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+
+export const renameDir = isWindows ? promisify(gracefulRename) : fs.renameSync
+
 export function ensureWatchedFile(
   watcher: FSWatcher,
   file: string | null,
@@ -561,6 +570,70 @@ export function ensureWatchedFile(
 
 export function getHash(text: Buffer | string): string {
   return createHash('sha256').update(text).digest('hex').substring(0, 8)
+}
+
+// Based on node-graceful-fs
+
+// The ISC License
+// Copyright (c) 2011-2022 Isaac Z. Schlueter, Ben Noordhuis, and Contributors
+// https://github.com/isaacs/node-graceful-fs/blob/main/LICENSE
+
+const GRACEFUL_RENAME_TIMEOUT = 5000
+function gracefulRename(
+  from: string,
+  to: string,
+  cb: (error: NodeJS.ErrnoException | null) => void,
+) {
+  const start = Date.now()
+  let backoff = 0
+  fs.rename(from, to, function CB(er) {
+    if (
+      er &&
+      (er.code === 'EACCES' || er.code === 'EPERM') &&
+      Date.now() - start < GRACEFUL_RENAME_TIMEOUT
+    ) {
+      setTimeout(function () {
+        fs.stat(to, function (stater, st) {
+          if (stater && stater.code === 'ENOENT') fs.rename(from, to, CB)
+          else CB(er)
+        })
+      }, backoff)
+      if (backoff < 100) backoff += 10
+      return
+    }
+    if (cb) cb(er)
+  })
+}
+
+const GRACEFUL_REMOVE_DIR_TIMEOUT = 5000
+function gracefulRemoveDir(
+  dir: string,
+  cb: (error: NodeJS.ErrnoException | null) => void,
+) {
+  const start = Date.now()
+  let backoff = 0
+  fs.rm(dir, { recursive: true }, function CB(er) {
+    if (er) {
+      if (
+        (er.code === 'ENOTEMPTY' ||
+          er.code === 'EACCES' ||
+          er.code === 'EPERM') &&
+        Date.now() - start < GRACEFUL_REMOVE_DIR_TIMEOUT
+      ) {
+        setTimeout(function () {
+          fs.rm(dir, { recursive: true }, CB)
+        }, backoff)
+        if (backoff < 100) backoff += 10
+        return
+      }
+
+      if (er.code === 'ENOENT') {
+        er = null
+      }
+    }
+
+    if (cb) cb(er)
+  })
 }
 
 export function joinUrlSegments(a: string, b: string): string {

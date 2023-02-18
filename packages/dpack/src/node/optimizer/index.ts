@@ -15,11 +15,19 @@ import {
   getHash,
   lookupFile,
   normalizePath,
+  removeDir,
+  renameDir,
+  writeFile,
 } from '../utils'
-export { getDepsOptimizer } from './opimizer'
+import { scanImports } from './scan'
+import { ESBUILD_MODULES_TARGET } from '../constants'
+export { getDepsOptimizer, initDepsOptimizer } from './opimizer'
 
 export const debuggerDpackDeps = createDebugger('dpack:deps')
 const debug = debuggerDpackDeps
+
+const jsExtensionRE = /\.js$/i
+const jsMapExtensionRE = /\.js\.map$/i
 
 export type ExportsData = {
   hasImports: boolean
@@ -41,10 +49,10 @@ export interface DepsOptimizer {
   isOptimizedDepFile: (id: string) => boolean
   isOptimizedDepUrl: (url: string) => boolean
   getOptimizedDepId: (depInfo: OptimizedDepInfo) => string
-  delayDepsOptimizerUntil: (id: string, done: () => Promise<any>) => void
-  registerWorkersSource: (id: string) => void
-  resetRegisteredIds: () => void
-  ensureFirstRun: () => void
+  delayDepsOptimizerUntil?: (id: string, done: () => Promise<any>) => void
+  registerWorkersSource?: (id: string) => void
+  resetRegisteredIds?: () => void
+  ensureFirstRun?: () => void
 
   close: () => Promise<void>
 
@@ -150,38 +158,180 @@ export interface DepOptimizationResult {
   cancel: () => void
 }
 
-// 因为我们的 vite 目录和测试的 src 目录在同一层，因此加了个../
-// const cacheDir = path.join(__dirname, '../', 'node_modules/.vite')
-export const optimizeDeps = async (config: ResolvedConfig) => {
-  const { root, cacheDir, logger } = config
-  // if (fs.existsSync(cacheDir)) return false
-  fs.mkdirSync(cacheDir, { recursive: true })
-  // 在分析依赖的时候 这里为简单实现就没按照源码使用 esbuild 插件去分析
-  // 而是直接简单粗暴的读取了上级 package.json 的 dependencies 字段
-  const pkgPath = path.join(searchForPackageRoot(root), 'package.json')
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'))
+export async function runOptimizeDeps(
+  resolvedConfig: ResolvedConfig,
+  depsInfo: Record<string, OptimizedDepInfo>,
+): Promise<DepOptimizationResult> {
+  const isBuild = resolvedConfig.command === 'build'
+  const config: ResolvedConfig = { ...resolvedConfig, command: 'build' }
 
-  const deps = Object.keys(pkg?.dependencies ?? {})
-  // 关于 esbuild 的参数可参考官方文档
-  const result = await esbuild.build({
-    entryPoints: deps,
+  const depsCacheDir = getDepsCacheDir(config)
+  const processingCacheDir = getProcessingDepsCacheDir(config)
+
+  // 创建一个临时目录，这样就不需要在处理完毕之前删除优化的deps。
+  // 也避免了在出现错误时让deps缓存目录处于损坏的状态
+  if (fs.existsSync(processingCacheDir)) {
+    emptyDir(processingCacheDir)
+  } else {
+    fs.mkdirSync(processingCacheDir, { recursive: true })
+  }
+
+  writeFile(
+    path.resolve(processingCacheDir, 'package.json'),
+    JSON.stringify({ type: 'module' }),
+  )
+
+  const metadata = initDepsOptimizerMetadata(config)
+
+  metadata.browserHash = getOptimizedBrowserHash(
+    metadata.hash,
+    depsFromOptimizedDepInfo(depsInfo),
+  )
+
+  // 用esbuild预捆绑依赖项并缓存它们
+  // 如果需要访问缓存的依赖需要等待optimizedDepInfo.processing promise 完成
+
+  const qualifiedIds = Object.keys(depsInfo)
+
+  const processingResult: DepOptimizationResult = {
+    metadata,
+    async commit() {
+      await removeDir(depsCacheDir)
+      await renameDir(processingCacheDir, depsCacheDir)
+    },
+    cancel() {
+      fs.rmSync(processingCacheDir, { recursive: true, force: true })
+    },
+  }
+
+  if (!qualifiedIds.length) {
+    return processingResult
+  }
+
+  // esbuild生成的嵌套目录输出是以最低共同祖先为基础的，很难预测，
+  // 也使其很难分析 入口 / 输出 映射。所以在这里：
+  // 1. 扁平化所有ID以消除斜线
+  // 2. 在插件中，将入口本身作为虚拟文件读取，以保留路径。
+  const flatIdDeps: Record<string, string> = {}
+  const idToExports: Record<string, ExportsData> = {}
+  const flatIdToExports: Record<string, ExportsData> = {}
+
+  const optimizeDeps = getDepOptimizationConfig(config)
+
+  const { plugins: pluginFromConfig = [], ...esbuildOptions } =
+    optimizeDeps?.esbuildOptions ?? {}
+
+  for (const id in depsInfo) {
+    const src = depsInfo[id].src!
+    const exportData = await (depsInfo[id].exportsData ??
+      extractExportsData(src, config))
+    if (exportData.jsxLoader) {
+      esbuildOptions.loader = {
+        '.js': 'jsx',
+        ...esbuildOptions.loader,
+      }
+    }
+    const flatId = flattenId(id)
+    flatIdDeps[flatId] = src
+    idToExports[id] = exportData
+    flatIdToExports[flatId] = exportData
+  }
+
+  const define = {
+    'process.env.NODE_ENV': isBuild
+      ? '__dpack_process_env_NODE_ENV'
+      : JSON.stringify(process.env.NODE_ENV || config.mode),
+  }
+
+  const platform = 'browser'
+
+  const external = [...(optimizeDeps?.exclude ?? [])]
+
+  if (isBuild) {
+    // TODO:...build
+  }
+
+  const plugins = [...pluginFromConfig]
+  if (external.length) {
+    // TODO: external
+  }
+  plugins.push(esbuildDepPlugin(flatIdDeps, external, config))
+
+  const start = performance.now()
+  const result = await build({
+    absWorkingDir: process.cwd(),
+    entryPoints: Object.keys(flatIdDeps),
     bundle: true,
+    platform,
+    define,
     format: 'esm',
+    target: isBuild ? config.build.target || void 0 : ESBUILD_MODULES_TARGET,
+    external,
     logLevel: 'error',
     splitting: true,
     sourcemap: true,
-    outdir: cacheDir,
-    treeShaking: true,
+    outdir: processingCacheDir,
+    ignoreAnnotations: !isBuild,
     metafile: true,
-    define: { 'process.env.NODE_ENV': '"development"' },
+    plugins,
+    charset: 'utf8',
+    ...esbuildOptions,
+    supported: {
+      ...esbuildOptions.supported,
+    },
   })
-  const outputs = Object.keys(result.metafile.outputs)
-  const data: any = {}
-  deps.forEach((dep) => {
-    data[dep] = '/' + outputs.find((output) => output.endsWith(`${dep}.js`))
-  })
-  const dataPath = path.join(cacheDir, '_metadata.json')
-  fs.writeFileSync(dataPath, JSON.stringify(data, null, 2))
+
+  const meta = result.metafile!
+
+  const processingCacheDirOutputPath = path.relative(
+    process.cwd(),
+    processingCacheDir,
+  )
+
+  for (const id in depsInfo) {
+    const output = esbuildOutputFromId(meta.outputs, id, processingCacheDir)
+
+    const { exportsData, ...info } = depsInfo[id]
+    addOptimizedDepInfo(metadata, 'optimized', {
+      ...info,
+      fileHash: getHash(
+        metadata.hash + depsInfo[id].file + JSON.stringify(output.import),
+      ),
+      browserHash: metadata.browserHash,
+      needsInterop: needsInterop(idToExports[id], output),
+    })
+  }
+
+  for (const o of Object.keys(meta.outputs)) {
+    if (!o.match(jsMapExtensionRE)) {
+      const id = path
+        .relative(processingCacheDirOutputPath, o)
+        .replace(jsExtensionRE, '')
+      const file = getOptimizedDepPath(id, resolvedConfig)
+      if (
+        !findOptimizedDepInfoInRecord(
+          metadata.optimized,
+          (depInfo) => depInfo.file === file,
+        )
+      ) {
+        addOptimizedDepInfo(metadata, 'chunks', {
+          id,
+          file,
+          needsInterop: false,
+          browserHash: metadata.browserHash,
+        })
+      }
+    }
+  }
+
+  const dataPath = path.join(processingCacheDir, '_metadata.json')
+  writeFile(dataPath, stringifyDepsOptimizerMetadata(metadata, depsCacheDir))
+
+  config.logger.info(
+    colors.green(`deps bundled in ${(performance.now() - start).toFixed(2)}ms`),
+  )
+
+  return processingResult
 }
 
 export function initDepsOptimizerMetadata(
@@ -272,8 +422,7 @@ export function loadCachedDepOptimizationMetadata(
 export async function discoverProjectDependencies(
   config: ResolvedConfig,
 ): Promise<Record<string, string>> {
-  const [deps, missing]: any = [{}, {}]
-  // const { deps, missing } = await scanImports(config)
+  const { deps, missing } = await scanImports(config)
 
   const missingIds = Object.keys(missing)
   if (missingIds.length) {
@@ -346,6 +495,34 @@ export function getDepsCacheDir(config: ResolvedConfig): string {
   return getDepsCacheDirPrefix(config) + getDepsCacheSuffix(config)
 }
 
+function getProcessingDepsCacheDir(config: ResolvedConfig) {
+  return getDepsCacheDirPrefix(config) + getDepsCacheSuffix(config) + '_temp'
+}
+
+export function isOptimizedDepFile(
+  id: string,
+  config: ResolvedConfig,
+): boolean {
+  return id.startsWith(getDepsCacheDirPrefix(config))
+}
+
+export function createIsOptimizedDepUrl(
+  config: ResolvedConfig,
+): (url: string) => boolean {
+  const { root } = config
+  const depsCacheDir = getDepsCacheDirPrefix(config)
+
+  // 确定缓存目录中文件的URL前缀
+  const depsCacheDirRelative = normalizePath(path.relative(root, depsCacheDir))
+  const depsCacheDirPrefix = depsCacheDirRelative.startsWith('../')
+    ? `/@fs/${normalizePath(depsCacheDir).replace(/^\//, '')}`
+    : `/${depsCacheDirRelative}`
+
+  return function isOptimizedDepUrl(url: string): boolean {
+    return url.startsWith(depsCacheDirPrefix)
+  }
+}
+
 function parseDepsOptimizerMetadata(
   jsonMetadata: string,
   depsCacheDir: string,
@@ -391,6 +568,62 @@ function parseDepsOptimizerMetadata(
     })
   }
   return metadata
+}
+
+/**
+ * 将元数据字符串化，用于deps缓存。删除处理承诺和单独的dep信息browserHash。
+ * 一旦缓存在下一次服务器启动时被重新加载，我们就需要使用全局的browserHash以允许长期缓存。
+ */
+function stringifyDepsOptimizerMetadata(
+  metadata: DepOptimizationMetadata,
+  depsCacheDir: string,
+) {
+  const { hash, browserHash, optimized, chunks } = metadata
+  return JSON.stringify(
+    {
+      hash,
+      browserHash,
+      optimized: Object.fromEntries(
+        Object.values(optimized).map(
+          ({ id, src, file, fileHash, needsInterop }) => [
+            id,
+            {
+              src,
+              file,
+              fileHash,
+              needsInterop,
+            },
+          ],
+        ),
+      ),
+      chunks: Object.fromEntries(
+        Object.values(chunks).map(({ id, file }) => [id, { file }]),
+      ),
+    },
+    (key: string, value: string) => {
+      // Paths can be absolute or relative to the deps cache dir where
+      // the _metadata.json is located
+      if (key === 'file' || key === 'src') {
+        return normalizePath(path.relative(depsCacheDir, value))
+      }
+      return value
+    },
+    2,
+  )
+}
+
+function esbuildOutputFromId(
+  outputs: Record<string, any>,
+  id: string,
+  cacheDirOutputPath: string,
+) {
+  const cwd = process.cwd()
+  const flatId = flattenId(id) + '.js'
+  const normalizedOutputPath = normalizePath(
+    path.relative(cwd, path.join(cacheDirOutputPath, flatId)),
+  )
+  const output = outputs[normalizedOutputPath]
+  if (output) return output
 }
 
 export async function extractExportsData(
@@ -444,21 +677,25 @@ function needsInterop(
     return true
   }
 
-  // if (output) {
-  //   // if a peer dependency used require() on an ESM dependency, esbuild turns the
-  //   // ESM dependency's entry chunk into a single default export... detect
-  //   // such cases by checking exports mismatch, and force interop.
-  //   const generatedExports: string[] = output.exports
+  if (output) {
+    // 如果一个对等依赖在ESM依赖上使用了require()，
+    // esbuild会将ESM依赖的入口块变成一个单一的default export...
+    // 通过检查出口不匹配来检测这种情况，并强制互操作。
+    const generatedExports: string[] = output.exports
 
-  //   if (
-  //     !generatedExports ||
-  //     (isSingleDefaultExport(generatedExports) &&
-  //       !isSingleDefaultExport(exports))
-  //   ) {
-  //     return true
-  //   }
-  // }
+    if (
+      !generatedExports ||
+      (isSingleDefaultExport(generatedExports) &&
+        !isSingleDefaultExport(exports))
+    ) {
+      return true
+    }
+  }
   return false
+}
+
+function isSingleDefaultExport(exports: readonly string[]) {
+  return exports.length === 1 && exports[0] === 'default'
 }
 
 const lockfileFormats = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']
@@ -510,6 +747,27 @@ export function newDepOptimizationProcessing(): DepOptimizationProcessing {
   return { promise, resolve: resolve! }
 }
 
+// Convert to { id: src }
+export function depsFromOptimizedDepInfo(
+  depsInfo: Record<string, OptimizedDepInfo>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(depsInfo).map((d) => [d[0], d[1].src!]),
+  )
+}
+
+function findOptimizedDepInfoInRecord(
+  dependenciesInfo: Record<string, OptimizedDepInfo>,
+  callbackFn: (depInfo: OptimizedDepInfo, id: string) => any,
+) {
+  for (const o of Object.keys(dependenciesInfo)) {
+    const info = dependenciesInfo[o]
+    if (callbackFn(info, o)) {
+      return info
+    }
+  }
+}
+
 export async function optimizedDepNeedsInterop(
   metadata: DepOptimizationMetadata,
   file: string,
@@ -521,4 +779,19 @@ export async function optimizedDepNeedsInterop(
     depInfo.needsInterop = needsInterop(await depInfo.exportsData)
   }
   return depInfo?.needsInterop
+}
+
+export function depsLogString(qualifiedIds: string[]): string {
+  if (false) {
+    return colors.yellow(qualifiedIds.join(`, `))
+  } else {
+    const total = qualifiedIds.length
+    const maxListed = 5
+    const listed = Math.min(total, maxListed)
+    const extra = Math.max(0, total - maxListed)
+    return colors.yellow(
+      qualifiedIds.slice(0, listed).join(`, `) +
+        (extra > 0 ? `, ...and ${extra} more` : ``),
+    )
+  }
 }

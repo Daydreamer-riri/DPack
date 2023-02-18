@@ -39,7 +39,7 @@ import { searchForPackageRoot } from './searchRoot'
 import colors from 'picocolors'
 import { htmlFallbackMiddleware } from './middlewares/htmlFallback'
 import { transformMiddleware } from './middlewares/transform'
-import { optimizeDeps } from '../optimizer'
+import { initDepsOptimizer } from '../optimizer'
 import type { PluginContainer } from './pluginContainer'
 import { createPluginContainer } from './pluginContainer'
 // import { initDepsOptimizer } from '../optimizer'
@@ -271,8 +271,6 @@ export async function createServer(
   const middlewareMode = false
   const httpsOptions = await resolveHttpsConfig(config.server.https)
 
-  optimizeDeps(config)
-
   const middlewares = connect() as Connect.Server
   const httpServer = middlewareMode
     ? null
@@ -406,13 +404,28 @@ export async function createServer(
     initingServer = (async function () {
       await container.buildStart({})
       if (isDepsOptimizerEnabled(config)) {
-        // await initDepsOptimizer(config, server)
+        await initDepsOptimizer(config, server)
       }
       initingServer = void 0
       serverInited = true
     })()
 
     return initingServer
+  }
+
+  if (!middlewareMode && httpServer) {
+    const listen = httpServer.listen.bind(httpServer)
+    httpServer.listen = (async (port: number, ...args: any[]) => {
+      try {
+        await initServer()
+      } catch (e) {
+        httpServer.emit('error', e)
+        return
+      }
+      return listen(port, ...args)
+    }) as any
+  } else {
+    await initServer()
   }
 
   return server

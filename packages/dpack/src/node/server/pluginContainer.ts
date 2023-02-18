@@ -358,6 +358,7 @@ export async function createPluginContainer(
         const result = await handler.call(ctx as any, rawId, importer, {
           assertions: options?.assertions ?? {},
           isEntry: !!options?.isEntry,
+          scan,
         })
         if (!result) continue
 

@@ -296,7 +296,7 @@ export async function resolveConfig(
   const createResolver: ResolvedConfig['createResolver'] = (options) => {
     let aliasContainer: PluginContainer | undefined
     let resolverContainer: PluginContainer | undefined
-    return async (id, importer, aliasOnly, ssr) => {
+    return async (id, importer, aliasOnly) => {
       let container: PluginContainer
       if (aliasOnly) {
         container =

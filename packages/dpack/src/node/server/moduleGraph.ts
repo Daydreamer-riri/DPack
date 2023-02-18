@@ -55,6 +55,23 @@ export class ModuleGraph {
     return this.idToModuleMap.get(removeTimestampQuery(id))
   }
 
+  invalidateModule(
+    mod: ModuleNode,
+    seen: Set<ModuleNode> = new Set(),
+    timestamp: number = Date.now(),
+  ) {
+    mod.lastInvalidationTimestamp = timestamp
+    mod.transformResult = null
+  }
+
+  invalidateAll(): void {
+    const timestamp = Date.now()
+    const seen = new Set<ModuleNode>()
+    this.idToModuleMap.forEach((mod) => {
+      this.invalidateModule(mod, seen, timestamp)
+    })
+  }
+
   async ensureEntryFromUrl(
     rawUrl: string,
     setIsSelfAccepting = true,
