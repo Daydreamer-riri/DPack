@@ -3,6 +3,9 @@ import type { PluginHookUtils, ResolvedConfig } from '../config'
 import { importAnalysisPlugin } from './importAnalysis'
 import { resolvePlugin } from './resolve'
 import { loadFallbackPlugin } from './loadFallback'
+import { getDepsOptimizer } from '../optimizer'
+import { optimizedDepsPlugin } from './optimizedDeps'
+import { preAliasPlugin } from './preAlias'
 
 export async function resolvePlugins(
   config: ResolvedConfig,
@@ -13,6 +16,8 @@ export async function resolvePlugins(
   const isBuild = config.command === 'build'
 
   return [
+    preAliasPlugin(config),
+    ...(isBuild ? [] : [optimizedDepsPlugin(config)]),
     resolvePlugin({
       ...config.resolve,
       root: config.root,
@@ -20,6 +25,7 @@ export async function resolvePlugins(
       // isProduction: config.isProduction,
       isBuild,
       asSrc: true,
+      getDepsOptimizer: () => getDepsOptimizer(config),
     }),
     ...(isBuild ? [] : [importAnalysisPlugin(config)]),
   ]

@@ -73,10 +73,10 @@ async function createDepsOptimizer(
     isOptimizedDepUrl: createIsOptimizedDepUrl(config),
     getOptimizedDepId: (depInfo: OptimizedDepInfo) =>
       isBuild ? depInfo.file : `${depInfo.file}?v=${depInfo.browserHash}`,
-    // registerWorkersSource,
-    // delayDepsOptimizerUntil,
-    // resetRegisteredIds,
-    // ensureFirstRun,
+    registerWorkersSource,
+    delayDepsOptimizerUntil,
+    resetRegisteredIds,
+    ensureFirstRun,
     close,
     options: getDepOptimizationConfig(config),
   }
@@ -375,6 +375,7 @@ async function createDepsOptimizer(
         }
       }
     } catch (e) {
+      logger.info(colors.red(`error while updating dependencies:\n${e.stack}`))
       logger.error(
         colors.red(`error while updating dependencies:\n${e.stack}`),
         { timestamp: true, error: e },
@@ -387,6 +388,7 @@ async function createDepsOptimizer(
   }
 
   function fullReload() {
+    logger.info(colors.gray('full reload'))
     // 重置moduleGraph
     if (server) {
       server.moduleGraph.invalidateAll()
@@ -398,14 +400,7 @@ async function createDepsOptimizer(
     }
   }
 
-  // function ensureFirstRun() {
-  //   if (!firstRunE)
-  // }
-
   async function rerun() {
-    // debounce time to wait for new missing deps finished, issue a new
-    // optimization of deps (both old and newly found) once the previous
-    // optimizeDeps processing is finished
     const deps = Object.keys(metadata.discovered)
     const depsString = depsLogString(deps)
     logger.info(colors.green(`new dependencies found: ${depsString}`))
@@ -490,6 +485,159 @@ async function createDepsOptimizer(
         enqueuedRerun()
       }
     }, timeout)
+  }
+
+  async function onCrawEnd() {
+    logger.info(colors.green(`✨ static imports crawl ended`))
+    if (firstRunCalled) {
+      return
+    }
+
+    currentlyProcessing = false
+
+    const crawlDeps = Object.keys(metadata.discovered)
+
+    // 等待在后台运行的扫描+优化步骤
+    await depsOptimizer.scanProcessing
+
+    if (!isBuild && postScanOptimizationResult) {
+      const result = await postScanOptimizationResult
+      postScanOptimizationResult = void 0
+
+      const scanDeps = Object.keys(result.metadata.optimized)
+
+      if (scanDeps.length === 0 && crawlDeps.length === 0) {
+        logger.info(
+          colors.green(
+            `✨ no dependencies found by the scanner or crawling static imports`,
+          ),
+        )
+        result.cancel()
+        firstRunCalled = true
+        return
+      }
+
+      const needsInteropMismatch = findInteropMismatches(
+        metadata.discovered,
+        result.metadata.optimized,
+      )
+      const scannerMissedDeps = crawlDeps.some((dep) => !scanDeps.includes(dep))
+      const outdatedResult =
+        needsInteropMismatch.length > 0 || scannerMissedDeps
+
+      if (outdatedResult) {
+        // 丢弃这个扫描结果，并进行新的优化，以避免完全重新加载
+        result.cancel()
+
+        // 在抓取时将扫描器发现的仓库添加到所发现的仓库中
+        for (const dep of scanDeps) {
+          if (!crawlDeps.includes(dep)) {
+            addMissingDep(dep, result.metadata.optimized[dep].src!)
+          }
+        }
+        if (scannerMissedDeps) {
+          logger.info(
+            colors.yellow(
+              `✨ new dependencies were found while crawling that weren't detected by the scanner`,
+            ),
+          )
+        }
+        logger.info(colors.green(`✨ re-running optimizer`))
+        debouncedProcessing(0)
+      } else {
+        logger.info(
+          colors.green(
+            `✨ using post-scan optimizer result, the scanner found every used dependency`,
+          ),
+        )
+        startNextDiscoveredBatch()
+        runOptimizer(result)
+      }
+    } else {
+      if (crawlDeps.length === 0) {
+        logger.info(
+          colors.green(
+            `no dependencies found while crawling the static imports`,
+          ),
+        )
+        firstRunCalled = true
+      } else {
+        debouncedProcessing(0)
+      }
+    }
+  }
+
+  const runOptimizerIfIdleAfterMs = 100
+
+  let registeredIds: { id: string; done: () => Promise<any> }[] = []
+  let seenIds = new Set<string>()
+  let workersSources = new Set<string>()
+  let waitingOn: string | undefined
+  let firstRunEnsured = false
+
+  function resetRegisteredIds() {
+    registeredIds = []
+    seenIds = new Set<string>()
+    workersSources = new Set<string>()
+    waitingOn = void 0
+    firstRunEnsured = false
+  }
+
+  function ensureFirstRun() {
+    if (!firstRunEnsured && !firstRunCalled && registeredIds.length === 0) {
+      setTimeout(() => {
+        if (!closed && registeredIds.length === 0) {
+          onCrawEnd()
+        }
+      }, runOptimizerIfIdleAfterMs)
+    }
+    firstRunEnsured = true
+  }
+
+  function registerWorkersSource(id: string): void {
+    workersSources.add(id)
+    // 避免等待这个ID，因为它可能被同样依赖优化器的worker的rollup bundling进程所阻断。
+    registeredIds = registeredIds.filter((registered) => registered.id !== id)
+    if (waitingOn === id) {
+      waitingOn = undefined
+      runOptimizerWhenIdle()
+    }
+  }
+
+  function delayDepsOptimizerUntil(id: string, done: () => Promise<any>): void {
+    if (!depsOptimizer.isOptimizedDepFile(id) && !seenIds.has(id)) {
+      seenIds.add(id)
+      registeredIds.push({ id, done })
+      runOptimizerWhenIdle()
+    }
+  }
+
+  function runOptimizerWhenIdle() {
+    if (!waitingOn) {
+      const next = registeredIds.pop()
+      if (next) {
+        waitingOn = next.id
+        const afterLoad = () => {
+          waitingOn = void 0
+          if (!closed && !workersSources.has(next.id)) {
+            if (registeredIds.length > 0) {
+              runOptimizerWhenIdle()
+            } else {
+              onCrawEnd()
+            }
+          }
+        }
+        next
+          .done()
+          .then(() => {
+            setTimeout(
+              afterLoad,
+              registeredIds.length > 0 ? 0 : runOptimizerIfIdleAfterMs,
+            )
+          })
+          .catch(afterLoad)
+      }
+    }
   }
 }
 

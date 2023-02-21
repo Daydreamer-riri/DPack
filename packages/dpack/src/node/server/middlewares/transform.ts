@@ -21,6 +21,10 @@ import { isCSSRequest, isDirectRequest } from '../../plugins/css'
 import { isHTMLProxy } from '../../plugins/html'
 import { ERR_LOAD_URL, transformRequest } from '../transformRequest'
 import { send } from '../send'
+import {
+  ERR_OPTIMIZE_DEPS_PROCESSING_ERROR,
+  ERR_OUTDATED_OPTIMIZED_DEP,
+} from '../../plugins/optimizedDeps'
 
 const knownIgnoreList = new Set(['/', '/favicon.ico'])
 
@@ -136,6 +140,24 @@ export function transformMiddleware(
         }
       }
     } catch (e) {
+      if (e?.code === ERR_OPTIMIZE_DEPS_PROCESSING_ERROR) {
+        // 如果已经发送了响应，则跳过
+        if (!res.writableEnded) {
+          res.statusCode = 504
+          res.end()
+        }
+        logger.error(e.message)
+        return
+      }
+      if (e?.code === ERR_OUTDATED_OPTIMIZED_DEP) {
+        // 如果已经发送了响应，则跳过
+        if (!res.writableEnded) {
+          res.statusCode = 504
+          res.end()
+        }
+        // 应发生重载
+        return
+      }
       if (e?.code === ERR_LOAD_URL) {
         return next()
       }

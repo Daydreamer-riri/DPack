@@ -41,6 +41,7 @@ import { getDepsOptimizer, optimizedDepNeedsInterop } from '../optimizer'
 import { getDepsCacheDirPrefix } from '../optimizer'
 import { browserExternalId } from './resolve'
 import { transformRequest } from '../server/transformRequest'
+import { ERR_OUTDATED_OPTIMIZED_DEP } from './optimizedDeps'
 
 const isDebug = !!process.env.DEBUG
 const debug = createDebugger('dpack:import-analysis')
@@ -358,8 +359,6 @@ export function importAnalysisPlugin(config: ResolvedConfig): Plugin {
                 config,
               )
 
-              console.log('needsInterop', needsInterop)
-
               if (needsInterop === undefined) {
               } else if (needsInterop) {
                 config.logger.info(colors.black(`${url} needs interop`))
@@ -433,10 +432,10 @@ export function importAnalysisPlugin(config: ResolvedConfig): Plugin {
         staticImportedUrls.forEach(({ url }) => {
           url = removeImportQuery(url)
           transformRequest(url, server).catch((e) => {
-            // if (e?.code === ERR_OUTDATED_OPTIMIZED_DEP) {
-            //   // This are expected errors
-            //   return
-            // }
+            if (e?.code === ERR_OUTDATED_OPTIMIZED_DEP) {
+              // This are expected errors
+              return
+            }
             // 意外的错误，记录该问题，但要避免出现未处理的异常
             config.logger.error(e.message)
           })

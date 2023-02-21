@@ -1,6 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import { resolve as _resolveExports } from 'resolve.exports'
+import colors from 'picocolors'
 import type { Plugin } from '../plugin'
 import {
   CLIENT_ENTRY,
@@ -12,10 +13,15 @@ import {
   OPTIMIZABLE_ENTRY_RE,
   SPECIAL_QUERY_RE,
 } from '../constants'
-import { DepsOptimizer, optimizedDepInfoFromId } from '../optimizer'
+import {
+  DepsOptimizer,
+  optimizedDepInfoFromFile,
+  optimizedDepInfoFromId,
+} from '../optimizer'
 import {
   bareImportRE,
   cleanUrl,
+  createDebugger,
   ensureVolumeInPath,
   fsPathFromId,
   getPotentialTsSrcPaths,
@@ -25,8 +31,10 @@ import {
   isFileReadable,
   isNonDriveRelativeAbsolutePath,
   isObject,
+  isOptimizable,
   isPossibleTsOutput,
   isTsRequest,
+  isWindows,
   lookupFile,
   nestedResolveFrom,
   normalizePath,
@@ -35,6 +43,8 @@ import {
 import type { PartialResolvedId } from 'rollup'
 import { loadPackageData, resolvePackageData } from '../packages'
 import type { PackageData, PackageCache } from '../packages'
+
+const debug = createDebugger('dpack:resolve-details')
 
 const normalizedClientEntry = normalizePath(CLIENT_ENTRY)
 const normalizedEnvEntry = normalizePath(ENV_ENTRY)
@@ -136,41 +146,39 @@ export function resolvePlugin(resolveOptions: InternalResolveOptions): Plugin {
         return optimizedPath
       }
 
-      // const ensureVersionQuery = (resolved: string): string => {
-      //   if (
-      //     !options.isBuild &&
-      //     depsOptimizer &&
-      //     !(
-      //       resolved === normalizedClientEntry ||
-      //       resolved === normalizedEnvEntry
-      //     )
-      //   ) {
-      //     // Ensure that direct imports of node_modules have the same version query
-      //     // as if they would have been imported through a bare import
-      //     // Use the original id to do the check as the resolved id may be the real
-      //     // file path after symlinks resolution
-      //     const isNodeModule =
-      //       nodeModulesInPathRE.test(normalizePath(id)) ||
-      //       nodeModulesInPathRE.test(normalizePath(resolved))
+      const ensureVersionQuery = (resolved: string): string => {
+        if (
+          !options.isBuild &&
+          depsOptimizer &&
+          !(
+            resolved === normalizedClientEntry ||
+            resolved === normalizedEnvEntry
+          )
+        ) {
+          // 确保直接导入node_modules的版本查询与通过裸导入导入的版本查询相同。
+          // 使用原始ID进行检查，因为解析的ID可能是符号链接解决后的真实文件路径。
+          const isNodeModule =
+            nodeModulesInPathRE.test(normalizePath(id)) ||
+            nodeModulesInPathRE.test(normalizePath(resolved))
 
-      //     if (isNodeModule && !resolved.match(DEP_VERSION_RE)) {
-      //       const versionHash = depsOptimizer.metadata.browserHash
-      //       if (versionHash && isOptimizable(resolved, depsOptimizer.options)) {
-      //         resolved = injectQuery(resolved, `v=${versionHash}`)
-      //       }
-      //     }
-      //   }
-      //   return resolved
-      // }
+          if (isNodeModule && !resolved.match(DEP_VERSION_RE)) {
+            const versionHash = depsOptimizer.metadata.browserHash
+            if (versionHash && isOptimizable(resolved)) {
+              resolved = injectQuery(resolved, `v=${versionHash}`)
+            }
+          }
+        }
+        return resolved
+      }
 
       // 以/@fs/*开头的明确fs路径
       if (asSrc && id.startsWith(FS_PREFIX)) {
         const fsPath = fsPathFromId(id)
         res = tryFsResolve(fsPath, options)
-        // isDebug && debug(`[@fs] ${colors.cyan(id)} -> ${colors.dim(res)}`)
+        debug(`[@fs] ${colors.cyan(id)} -> ${colors.dim(res)}`)
         // always return here even if res doesn't exist since /@fs/ is explicit
         // if the file doesn't exist it should be a 404
-        return res || fsPath
+        return ensureVersionQuery(res || fsPath)
       }
 
       // URL
@@ -179,8 +187,7 @@ export function resolvePlugin(resolveOptions: InternalResolveOptions): Plugin {
         const fsPath = path.resolve(root, id.slice(1))
         if ((res = tryFsResolve(fsPath, options))) {
           // isDebug && debug(`[url] ${colors.cyan(id)} -> ${colors.dim(res)}`)
-          // return ensureVersionQuery(res)
-          return res
+          return ensureVersionQuery(res)
         }
       }
 
@@ -192,22 +199,21 @@ export function resolvePlugin(resolveOptions: InternalResolveOptions): Plugin {
         const basedir = importer ? path.dirname(importer) : process.cwd()
         const fsPath = path.resolve(basedir, id)
 
-        // TODO: optimized
         const normalizedFsPath = normalizePath(fsPath)
-        // if (depsOptimizer?.isOptimizedDepFile(normalizedFsPath)) {
-        //   // Optimized files could not yet exist in disk, resolve to the full path
-        //   // Inject the current browserHash version if the path doesn't have one
-        //   if (!normalizedFsPath.match(DEP_VERSION_RE)) {
-        //     const browserHash = optimizedDepInfoFromFile(
-        //       depsOptimizer.metadata,
-        //       normalizedFsPath,
-        //     )?.browserHash
-        //     if (browserHash) {
-        //       return injectQuery(normalizedFsPath, `v=${browserHash}`)
-        //     }
-        //   }
-        //   return normalizedFsPath
-        // }
+        if (depsOptimizer?.isOptimizedDepFile(normalizedFsPath)) {
+          // 优化后的文件在磁盘中尚不存在，解析为完整路径。
+          // 如果路径中没有浏览器Hash版本，则注入当前的浏览器Hash版本
+          if (!normalizedFsPath.match(DEP_VERSION_RE)) {
+            const browserHash = optimizedDepInfoFromFile(
+              depsOptimizer.metadata,
+              normalizedFsPath,
+            )?.browserHash
+            if (browserHash) {
+              return injectQuery(normalizedFsPath, `v=${browserHash}`)
+            }
+          }
+          return normalizedFsPath
+        }
 
         // if (
         //   targetWeb &&
@@ -217,9 +223,9 @@ export function resolvePlugin(resolveOptions: InternalResolveOptions): Plugin {
         // }
 
         if ((res = tryFsResolve(fsPath, options))) {
-          // res = ensureVersionQuery(res)
-          // isDebug &&
-          //   debug(`[relative] ${colors.cyan(id)} -> ${colors.dim(res)}`)
+          res = ensureVersionQuery(res)
+          debug(`[relative] ${colors.cyan(id)} -> ${colors.dim(res)}`)
+
           const pkg = importer != null && idToPkgMap.get(importer)
           if (pkg) {
             idToPkgMap.set(res, pkg)
@@ -232,13 +238,23 @@ export function resolvePlugin(resolveOptions: InternalResolveOptions): Plugin {
         }
       }
 
+      // drive relative fs paths (only windows)
+      if (isWindows && id.startsWith('/')) {
+        const basedir = importer ? path.dirname(importer) : process.cwd()
+        const fsPath = path.resolve(basedir, id)
+        if ((res = tryFsResolve(fsPath, options))) {
+          debug(`[drive-relative] ${colors.cyan(id)} -> ${colors.dim(res)}`)
+          return ensureVersionQuery(res)
+        }
+      }
+
       // absolute fs paths
       if (
         isNonDriveRelativeAbsolutePath(id) &&
         (res = tryFsResolve(id, options))
       ) {
-        // isDebug && debug(`[fs] ${colors.cyan(id)} -> ${colors.dim(res)}`)
-        return res
+        debug(`[fs] ${colors.cyan(id)} -> ${colors.dim(res)}`)
+        return ensureVersionQuery(res)
       }
 
       // external

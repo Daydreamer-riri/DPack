@@ -19,6 +19,7 @@ import {
   renameDir,
   writeFile,
 } from '../utils'
+import { esbuildCjsExternalPlugin, esbuildDepPlugin } from './esbuildDepPlugin'
 import { scanImports } from './scan'
 import { ESBUILD_MODULES_TARGET } from '../constants'
 export { getDepsOptimizer, initDepsOptimizer } from './opimizer'
@@ -49,10 +50,10 @@ export interface DepsOptimizer {
   isOptimizedDepFile: (id: string) => boolean
   isOptimizedDepUrl: (url: string) => boolean
   getOptimizedDepId: (depInfo: OptimizedDepInfo) => string
-  delayDepsOptimizerUntil?: (id: string, done: () => Promise<any>) => void
-  registerWorkersSource?: (id: string) => void
-  resetRegisteredIds?: () => void
-  ensureFirstRun?: () => void
+  delayDepsOptimizerUntil: (id: string, done: () => Promise<any>) => void
+  registerWorkersSource: (id: string) => void
+  resetRegisteredIds: () => void
+  ensureFirstRun: () => void
 
   close: () => Promise<void>
 
@@ -165,8 +166,8 @@ export async function runOptimizeDeps(
   const isBuild = resolvedConfig.command === 'build'
   const config: ResolvedConfig = { ...resolvedConfig, command: 'build' }
 
-  const depsCacheDir = getDepsCacheDir(config)
-  const processingCacheDir = getProcessingDepsCacheDir(config)
+  const depsCacheDir = getDepsCacheDir(resolvedConfig)
+  const processingCacheDir = getProcessingDepsCacheDir(resolvedConfig)
 
   // 创建一个临时目录，这样就不需要在处理完毕之前删除优化的deps。
   // 也避免了在出现错误时让deps缓存目录处于损坏的状态
