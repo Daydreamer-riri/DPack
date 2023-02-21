@@ -56,16 +56,26 @@ importers:
     specifiers:
       '@dpack/dpack': ^0.0.1
       '@dpack/test-dep-that-imports': file:./dep-that-imports
+      '@dpack/test-dep-that-requires': file:./dep-that-requires
       slash3: npm:slash@^3.0.0
       slash5: npm:slash@^5.0.0
     dependencies:
       '@dpack/test-dep-that-imports': file:example/external/dep-that-imports
+      '@dpack/test-dep-that-requires': file:example/external/dep-that-requires
     devDependencies:
       '@dpack/dpack': link:../../packages/dpack
       slash3: /slash/3.0.0
       slash5: /slash/5.0.0
 
   example/external/dep-that-imports:
+    specifiers:
+      slash3: npm:slash@^3.0.0
+      slash5: npm:slash@^5.0.0
+    dependencies:
+      slash3: /slash/3.0.0
+      slash5: /slash/5.0.0
+
+  example/external/dep-that-requires:
     specifiers:
       slash3: npm:slash@^3.0.0
       slash5: npm:slash@^5.0.0
@@ -1212,6 +1222,15 @@ packages:
   file:example/external/dep-that-imports:
     resolution: {directory: example/external/dep-that-imports, type: directory}
     name: '@dpack/test-dep-that-imports'
+    version: 0.0.0
+    dependencies:
+      slash3: /slash/3.0.0
+      slash5: /slash/5.0.0
+    dev: false
+
+  file:example/external/dep-that-requires:
+    resolution: {directory: example/external/dep-that-requires, type: directory}
+    name: '@dpack/test-dep-that-requires'
     version: 0.0.0
     dependencies:
       slash3: /slash/3.0.0
