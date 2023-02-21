@@ -6,7 +6,8 @@
     "dev": "dpack"
   },
   "dependencies": {
-    "@dpack/test-dep-that-imports": "file:./dep-that-imports"
+    "@dpack/test-dep-that-imports": "file:./dep-that-imports",
+    "@dpack/test-dep-that-requires": "file:./dep-that-requires"
   },
   "devDependencies": {
     "slash3": "npm:slash@^3.0.0",
