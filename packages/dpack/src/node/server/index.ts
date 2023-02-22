@@ -34,7 +34,7 @@ import {
   createDevHtmlTransformFn,
   indexHtmlMiddleware,
 } from './middlewares/indexHtml'
-import type { Logger } from '../logger'
+import { Logger, printServerUrls } from '../logger'
 import { searchForPackageRoot } from './searchRoot'
 import colors from 'picocolors'
 import { htmlFallbackMiddleware } from './middlewares/htmlFallback'
@@ -211,10 +211,9 @@ export interface DpackDevServer {
    */
   close(): Promise<void>
   /**
-   * TODO:
    * 打印服务urls
    */
-  // printUrls(): void
+  printUrls(): void
   /**
    * 重启服务
    *
@@ -265,7 +264,6 @@ export async function createServer(
 ): Promise<DpackDevServer> {
   // const config = await resolveConfig
   // const { middlewareMode } = serverConfig
-  // TODO:
   const config = await resolveConfig(inlineConfig, 'serve')
   const { root, server: serverConfig } = config
   const middlewareMode = false
@@ -340,21 +338,21 @@ export async function createServer(
       server.resolvedUrls = null
     },
     // 打印相关
-    // printUrls() {
-    //   if (server.resolvedUrls) {
-    //     printServerUrls(
-    //       server.resolvedUrls,
-    //       // serverConfig.host,
-    //       config.logger?.info,
-    //     )
-    //   } else if (middlewareMode) {
-    //     throw new Error('cannot print server URLs in middleware mode.')
-    //   } else {
-    //     throw new Error(
-    //       'cannot print server URLs before server.listen is called.',
-    //     )
-    //   }
-    // },
+    printUrls() {
+      if (server.resolvedUrls) {
+        printServerUrls(
+          server.resolvedUrls,
+          serverConfig.host,
+          config.logger?.info,
+        )
+      } else if (middlewareMode) {
+        throw new Error('cannot print server URLs in middleware mode.')
+      } else {
+        throw new Error(
+          'cannot print server URLs before server.listen is called.',
+        )
+      }
+    },
     async restart(forceOptimize?: boolean) {
       if (!server._restartPromise) {
         server._forceOptimizeOnRestart = !!forceOptimize

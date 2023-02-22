@@ -3,7 +3,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import colors from 'picocolors'
 import { VERSION } from './constants'
-import type { LogLevel } from './logger'
+import { createLogger, LogLevel } from './logger'
 import { ServerOptions } from './server'
 
 const cli = cac('dpack')
@@ -133,8 +133,15 @@ cli
           `${colors.bold('DPACK')} v${VERSION}`,
         )} ${startupDurationString} \n`,
       )
+
+      server.printUrls()
     } catch (e) {
-      console.log(e)
+      const logger = createLogger(options.logLevel)
+      logger.error(colors.red(`error when starting dev server:\n${e.stack}`), {
+        error: e
+      })
+      stopProfiler(logger.info)
+      process.exit(1)
     }
   })
 
