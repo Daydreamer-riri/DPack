@@ -602,8 +602,7 @@ function stringifyDepsOptimizerMetadata(
       ),
     },
     (key: string, value: string) => {
-      // Paths can be absolute or relative to the deps cache dir where
-      // the _metadata.json is located
+      // 路径可以是绝对的，也可以是相对于_metadata.json所在的deps cache dir的。
       if (key === 'file' || key === 'src') {
         return normalizePath(path.relative(depsCacheDir, value))
       }

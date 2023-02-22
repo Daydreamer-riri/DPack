@@ -25,6 +25,19 @@ export interface PackageData {
   }
 }
 
+export function invalidatePackageData(
+  packageCache: PackageCache,
+  pkgPath: string,
+) {
+  packageCache.delete(pkgPath)
+  const pkgDir = path.dirname(pkgPath)
+  packageCache.forEach((pkg, cacheKey) => {
+    if (pkg.dir === pkgDir) {
+      packageCache.delete(cacheKey)
+    }
+  })
+}
+
 export function resolvePackageData(
   id: string,
   basedir: string,

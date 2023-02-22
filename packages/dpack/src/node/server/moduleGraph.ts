@@ -55,6 +55,20 @@ export class ModuleGraph {
     return this.idToModuleMap.get(removeTimestampQuery(id))
   }
 
+  getModulesByFile(file: string): Set<ModuleNode> | undefined {
+    return this.fileToModulesMap.get(file)
+  }
+
+  onFileChange(file: string): void {
+    const mods = this.getModulesByFile(file)
+    if (mods) {
+      const seen = new Set<ModuleNode>()
+      mods.forEach((mod) => {
+        this.invalidateModule(mod, seen)
+      })
+    }
+  }
+
   invalidateModule(
     mod: ModuleNode,
     seen: Set<ModuleNode> = new Set(),

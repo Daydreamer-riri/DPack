@@ -13,7 +13,7 @@ import {
   resolveHttpServer,
   setClientErrorHandler,
 } from '../http'
-import type { HmrOptions } from './hmr'
+import { handleFileAddUnlink, HmrOptions } from './hmr'
 import type * as http from 'node:http'
 import chokidar from 'chokidar'
 import type { FSWatcher, WatchOptions } from 'dep-types/chokidar'
@@ -39,9 +39,11 @@ import { searchForPackageRoot } from './searchRoot'
 import colors from 'picocolors'
 import { htmlFallbackMiddleware } from './middlewares/htmlFallback'
 import { transformMiddleware } from './middlewares/transform'
-import { initDepsOptimizer } from '../optimizer'
+import { getDepsOptimizer, initDepsOptimizer } from '../optimizer'
 import type { PluginContainer } from './pluginContainer'
 import { createPluginContainer } from './pluginContainer'
+import { resolveChokidarOptions } from '../watch'
+import { invalidatePackageData } from '../packages'
 // import { initDepsOptimizer } from '../optimizer'
 
 export interface ServerOptions extends CommonServerOptions {
@@ -262,12 +264,15 @@ export interface ResolvedServerUrls {
 export async function createServer(
   inlineConfig: InlineConfig = {},
 ): Promise<DpackDevServer> {
-  // const config = await resolveConfig
   // const { middlewareMode } = serverConfig
   const config = await resolveConfig(inlineConfig, 'serve')
   const { root, server: serverConfig } = config
   const middlewareMode = false
   const httpsOptions = await resolveHttpsConfig(config.server.https)
+  const resolvedWatchOptions = resolveChokidarOptions(config, {
+    disableGlobbing: true,
+    ...serverConfig.watch,
+  })
 
   const middlewares = connect() as Connect.Server
   const httpServer = middlewareMode
@@ -279,7 +284,10 @@ export async function createServer(
     setClientErrorHandler(httpServer, config.logger)
   }
 
-  const watcher = chokidar.watch(path.resolve(root)) // TODO:options
+  const watcher = chokidar.watch(
+    path.resolve(root),
+    resolvedWatchOptions,
+  ) as FSWatcher
 
   const moduleGraph: ModuleGraph = new ModuleGraph((url) =>
     container.resolveId(url, undefined),
@@ -330,9 +338,8 @@ export async function createServer(
       await Promise.allSettled([
         watcher.close(),
         // ws.close(),
-        // container.close(),
-        // getDepsOptimizer(server.config)?.close(),
-        // getDepsOptimizer(server.config, true)?.close(),
+        container.close(),
+        getDepsOptimizer(server.config)?.close(),
         closeHttpServer(),
       ])
       server.resolvedUrls = null
@@ -372,6 +379,58 @@ export async function createServer(
   }
 
   server.transformIndexHtml = createDevHtmlTransformFn(server)
+
+  if (!middlewareMode) {
+    exitProcess = async () => {
+      try {
+        await server.close()
+      } finally {
+        process.exit()
+      }
+    }
+    process.once('SIGTERM', exitProcess)
+    if (process.env.CI !== 'true') {
+      process.stdin.on('end', exitProcess)
+    }
+  }
+
+  // 对package.json添加监听
+  const { packageCache } = config
+  const setPackageData = packageCache.set.bind(packageCache)
+  packageCache.set = (id, pkg) => {
+    if (id.endsWith('.json')) {
+      watcher.add(id)
+    }
+    return setPackageData(id, pkg)
+  }
+
+  watcher.on('change', async (file) => {
+    file = normalizePath(file)
+    if (file.endsWith('/package.json')) {
+      return invalidatePackageData(packageCache, file)
+    }
+
+    config.logger.info(`[watch:changed] ${colors.cyan(file)}`)
+
+    moduleGraph.onFileChange(file)
+    if (serverConfig.hmr !== false) {
+      try {
+        // await handleHMRUpdate(file, server) // TODO:HMR
+      } catch (e) {
+        // ws.send({
+        //   type: 'error',
+        //   err: prepareError(e)
+        // })
+      }
+    }
+  })
+
+  watcher.on('add', (file) => {
+    handleFileAddUnlink(normalizePath(file), server)
+  })
+  watcher.on('unlink', (file) => {
+    handleFileAddUnlink(normalizePath(file), server)
+  })
 
   const postHooks: ((() => void) | void)[] = []
   for (const hook of config.getSortedPluginHooks('configureServer')) {
