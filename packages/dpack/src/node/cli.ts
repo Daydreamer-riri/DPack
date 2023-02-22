@@ -132,6 +132,7 @@ cli
         `\n ${colors.green(
           `${colors.bold('DPACK')} v${VERSION}`,
         )} ${startupDurationString} \n`,
+        {clear: !server.config.logger.hasWarned}
       )
 
       server.printUrls()

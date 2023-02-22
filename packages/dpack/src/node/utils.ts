@@ -2,7 +2,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import dns from 'node:dns/promises'
 import os from 'node:os'
-import type { Server } from 'node:net'
+import type { Server, AddressInfo } from 'node:net'
 import { createHash } from 'node:crypto'
 import { promisify } from 'node:util'
 import { debug } from 'debug'
@@ -12,6 +12,7 @@ import {
   DEFAULT_EXTENSIONS,
   ENV_PUBLIC_PATH,
   FS_PREFIX,
+  loopbackHosts,
   NULL_BYTE_PLACEHOLDER,
   OPTIMIZABLE_ENTRY_RE,
   VALID_ID_PREFIX,
@@ -323,7 +324,7 @@ export async function resolveHostname(
 ): Promise<Hostname> {
   let host: string | undefined
   if (optionsHost === undefined || optionsHost === false) {
-    // Use a secure default
+    // 使用一个安全的默认值
     host = 'localhost'
   } else if (optionsHost === true) {
     // If passed --host in the CLI without arguments
@@ -332,11 +333,10 @@ export async function resolveHostname(
     host = optionsHost
   }
 
-  // Set host name to localhost when possible
+  // 尽可能将主机名设为localhost
   let name = host === undefined || wildcardHosts.has(host) ? 'localhost' : host
 
   if (host === 'localhost') {
-    // See #8647 for more details.
     const localhostAddr = await getLocalhostAddressIfDiffersFromDNS()
     if (localhostAddr) {
       name = localhostAddr
@@ -351,10 +351,51 @@ export async function resolveServerUrls(
   options: CommonServerOptions,
   config: ResolvedConfig,
 ): Promise<ResolvedServerUrls> {
-  return {
-    local: [],
-    network: [],
+  const address = server.address()
+
+  const isAddressInfo = (x: any): x is AddressInfo => x?.address
+  if (!isAddressInfo(address)) {
+    return { local: [], network: [] }
   }
+
+  const local: string[] = []
+  const network: string[] = []
+  const hostname = await resolveHostname(options.host)
+  const protocol = options.https ? 'https' : 'http'
+  const port = address.port
+  const base =
+    config.rawBase === './' || config.rawBase === '' ? '/' : config.rawBase
+
+  if (hostname.host && loopbackHosts.has(hostname.host)) {
+    let hostnameName = hostname.name
+    if (hostnameName.includes(':')) {
+      hostnameName = `[${hostnameName}]`
+    }
+    local.push(`${protocol}://${hostnameName}:${port}${base}`)
+  } else {
+    Object.values(os.networkInterfaces())
+      .flatMap((nInterace) => nInterace ?? [])
+      .filter(
+        (detail) =>
+          detail?.address &&
+          ((typeof detail.family === 'string' && detail.family === 'IPv4') ||
+            // @ts-ignore Node 18.0 - 18.3 returns number
+            (typeof detail.family === 'number' && detail.family === 4)),
+      )
+      .forEach((detail) => {
+        let host = detail.address.replace('127.0.0.1', hostname.name)
+        if (host.includes(':')) {
+          host = `[${host}]`
+        }
+        const url = `${protocol}://${host}:${port}${base}`
+        if (detail.address.includes('127.0.0.1')) {
+          local.push(url)
+        } else {
+          network.push(url)
+        }
+      })
+  }
+  return { local, network }
 }
 
 export const isWindows = os.platform() === 'win32'
