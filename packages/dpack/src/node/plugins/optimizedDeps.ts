@@ -54,7 +54,7 @@ export function optimizedDepsPlugin(config: ResolvedConfig): Plugin {
             }
           }
         }
-        logger.info(`load ${colors.cyan(file)}`)
+        logger.info(`[dep load] ${colors.cyan(file)}`)
 
         try {
           return await fs.readFile(file, 'utf-8')
