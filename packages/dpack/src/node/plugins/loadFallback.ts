@@ -7,7 +7,7 @@ import { cleanUrl } from '../utils'
  */
 export function loadFallbackPlugin(): Plugin {
   return {
-    name: 'vite:load-fallback',
+    name: 'dpack:load-fallback',
     async load(id) {
       try {
         return await fs.readFile(cleanUrl(id), 'utf-8')

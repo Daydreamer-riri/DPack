@@ -13,7 +13,12 @@ import {
   resolveHttpServer,
   setClientErrorHandler,
 } from '../http'
-import { handleFileAddUnlink, HmrOptions } from './hmr'
+import {
+  getShortName,
+  handleFileAddUnlink,
+  HmrOptions,
+  updateModules,
+} from './hmr'
 import type * as http from 'node:http'
 import chokidar from 'chokidar'
 import type { FSWatcher, WatchOptions } from 'dep-types/chokidar'
@@ -44,7 +49,7 @@ import type { PluginContainer } from './pluginContainer'
 import { createPluginContainer } from './pluginContainer'
 import { resolveChokidarOptions } from '../watch'
 import { invalidatePackageData } from '../packages'
-// import { initDepsOptimizer } from '../optimizer'
+import type { InvalidatePayload } from 'types/customEvent'
 
 export interface ServerOptions extends CommonServerOptions {
   /**
@@ -142,10 +147,9 @@ export interface DpackDevServer {
    */
   watcher: FSWatcher
   /**
-   * TODO:
    * web socket server with `send(payload)` method
    */
-  // ws: WebSocketServer
+  ws: WebSocketServer
   /**
    * Rollup plugin container that can run plugin hooks on a given file
    */
@@ -278,7 +282,7 @@ export async function createServer(
   const httpServer = middlewareMode
     ? null
     : await resolveHttpServer(serverConfig, middlewares, httpsOptions)
-  // const ws = createWebSocketServer(httpServer, config, httpsOptions)
+  const ws = createWebSocketServer(httpServer, config, httpsOptions)
 
   if (httpServer) {
     setClientErrorHandler(httpServer, config.logger)
@@ -304,7 +308,7 @@ export async function createServer(
     httpServer,
     watcher,
     pluginContainer: container,
-    // ws,
+    ws,
     moduleGraph,
     resolvedUrls: null,
     transformRequest(url, options) {
@@ -337,7 +341,7 @@ export async function createServer(
       }
       await Promise.allSettled([
         watcher.close(),
-        // ws.close(),
+        ws.close(),
         container.close(),
         getDepsOptimizer(server.config)?.close(),
         closeHttpServer(),
@@ -430,6 +434,26 @@ export async function createServer(
   })
   watcher.on('unlink', (file) => {
     handleFileAddUnlink(normalizePath(file), server)
+  })
+
+  ws.on('dpack:invalidate', async ({ path, message }: InvalidatePayload) => {
+    const mod = moduleGraph.urlToModuleMap.get(path)
+    if (mod?.isSelfAccepting && mod?.lastHMRTimestamp > 0) {
+      config.logger.info(
+        colors.yellow(`hmr invalidate `) +
+          colors.dim(path) +
+          (message ? ` ${message}` : ''),
+        { timestamp: true },
+      )
+      const file = getShortName(mod.file!, config.root)
+      updateModules(
+        file,
+        [...mod.importers],
+        mod.lastHMRTimestamp,
+        server,
+        true,
+      )
+    }
   })
 
   const postHooks: ((() => void) | void)[] = []

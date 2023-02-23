@@ -81,6 +81,8 @@ export function createWebSocketServer(
   let wss: WebSocketServerRow
   let httpsServer: Server | undefined = void 0
 
+  const logger = config.logger
+
   const hmr = isObject(config.server.hmr) && config.server.hmr
   const hmrServer = hmr && hmr.server
   const hmrPort = hmr && hmr.port
@@ -90,6 +92,7 @@ export function createWebSocketServer(
   const clientsMap = new WeakMap<WebSocketRaw, WebSocketClient>()
 
   if (wsServer) {
+    logger.info(`[ws] ${colors.yellow('ws created')}`)
     wss = new WebSocketServerRow({ noServer: true })
     wsServer.on('upgrade', (req, socket, head) => {
       if (req.headers['sec-websocket-protocol'] === HMR_HEADER) {

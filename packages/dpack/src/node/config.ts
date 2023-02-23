@@ -14,9 +14,11 @@ import {
   ServerOptions,
 } from './server'
 import {
+  CLIENT_ENTRY,
   DEFAULT_CONFIG_FILES,
   DEFAULT_EXTENSIONS,
   DEFAULT_MAIN_FIELDS,
+  ENV_ENTRY,
 } from './constants'
 import type { RollupOptions } from 'rollup'
 import {
@@ -40,6 +42,7 @@ import type { PackageCache } from './packages'
 import type { PluginContainer } from './server/pluginContainer'
 import { createPluginContainer } from './server/pluginContainer'
 import { resolvePlugin } from './plugins/resolve'
+import type { Alias } from 'dep-types/alias'
 
 export interface ConfigEnv {
   command: 'build' | 'serve'
@@ -245,10 +248,15 @@ export async function resolveConfig(
     config.root ? path.resolve(config.root) : process.cwd(),
   )
 
-  // const clientAlias = [
-  //   { find: /^\/?@dpack\/env/, replacement: ENV_ENTRY },
-  //   { find: /^\/?@dpack\/client/, replacement: CLIENT_ENTRY },
-  // ]
+  const clientAlias = [
+    { find: /^\/?@dpack\/env/, replacement: ENV_ENTRY },
+    { find: /^\/?@dpack\/client/, replacement: CLIENT_ENTRY },
+  ]
+
+  const resolvedAlias: Alias[] = [
+    ...clientAlias,
+    ...(config.resolve?.alias || []),
+  ]
 
   const resolveOptions: ResolvedConfig['resolve'] = {
     mainFields: config.resolve?.mainFields ?? DEFAULT_MAIN_FIELDS,
@@ -256,6 +264,7 @@ export async function resolveConfig(
     extensions: config.resolve?.extensions ?? DEFAULT_EXTENSIONS,
     dedupe: config.resolve?.dedupe ?? [],
     preserveSymlinks: config.resolve?.preserveSymlinks ?? false,
+    alias: resolvedAlias,
   }
 
   // env 相关 TODO:

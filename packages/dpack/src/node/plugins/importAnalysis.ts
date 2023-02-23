@@ -185,7 +185,7 @@ export function importAnalysisPlugin(config: ResolvedConfig): Plugin {
 
         //     // if the dependency encountered in the optimized file was excluded from the optimization
         //     // the dependency needs to be resolved starting from the original source location of the optimized file
-        //     // because starting from node_modules/.vite will not find the dependency if it was not hoisted
+        //     // because starting from node_modules/.Dpack will not find the dependency if it was not hoisted
         //     // (that is, if it is under node_modules directory in the package source of the optimized file)
         //     for (const optimizedModule of depsOptimizer.metadata.depInfoList) {
         //       if (!optimizedModule.src) continue // Ignore chunks
@@ -549,12 +549,12 @@ export function transformCjsImport(
         const exportedName = spec.exported.name
         if (exportedName === 'default') {
           defaultExports = makeLegalIdentifier(
-            `__vite__cjsExportDefault_${importIndex}`,
+            `__dpack__cjsExportDefault_${importIndex}`,
           )
           importNames.push({ importedName, localName: defaultExports })
         } else {
           const localName = makeLegalIdentifier(
-            `__vite__cjsExport_${exportedName}`,
+            `__dpack__cjsExport_${exportedName}`,
           )
           importNames.push({ importedName, localName })
           exportNames.push(`${localName} as ${exportedName}`)
@@ -565,7 +565,7 @@ export function transformCjsImport(
     // If there is multiple import for same id in one file,
     // importIndex will prevent the cjsModuleName to be duplicate
     const cjsModuleName = makeLegalIdentifier(
-      `__vite__cjsImport${importIndex}_${rawUrl}`,
+      `__dpack__cjsImport${importIndex}_${rawUrl}`,
     )
     const lines: string[] = [`import ${cjsModuleName} from "${url}"`]
     importNames.forEach(({ importedName, localName }) => {

@@ -393,10 +393,10 @@ async function createDepsOptimizer(
     if (server) {
       server.moduleGraph.invalidateAll()
 
-      // server.ws.send({
-      //   type: 'full-reload',
-      //   path: '*'
-      // })
+      server.ws.send({
+        type: 'full-reload',
+        path: '*',
+      })
     }
   }
 
@@ -435,11 +435,6 @@ async function createDepsOptimizer(
     }
 
     missing = addMissingDep(id, resolved)
-
-    // Until the first optimize run is called, avoid triggering processing
-    // We'll wait until the user codebase is eagerly processed by Vite so
-    // we can get a list of every missing dependency before giving to the
-    // browser a dependency that may be outdated, thus avoiding full page reloads
 
     if (firstRunCalled) {
       // Debounced rerun, let other missing dependencies be discovered before

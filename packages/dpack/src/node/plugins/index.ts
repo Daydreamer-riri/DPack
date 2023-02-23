@@ -1,3 +1,4 @@
+import aliasPlugin from '@rollup/plugin-alias'
 import type { HookHandler, Plugin } from '../plugin'
 import type { PluginHookUtils, ResolvedConfig } from '../config'
 import { importAnalysisPlugin } from './importAnalysis'
@@ -6,6 +7,7 @@ import { loadFallbackPlugin } from './loadFallback'
 import { getDepsOptimizer } from '../optimizer'
 import { optimizedDepsPlugin } from './optimizedDeps'
 import { preAliasPlugin } from './preAlias'
+import { clientInjectionsPlugin } from './clientInjections'
 
 export async function resolvePlugins(
   config: ResolvedConfig,
@@ -17,6 +19,7 @@ export async function resolvePlugins(
 
   return [
     preAliasPlugin(config),
+    aliasPlugin({ entries: config.resolve.alias }),
     ...(isBuild ? [] : [optimizedDepsPlugin(config)]),
     resolvePlugin({
       ...config.resolve,
@@ -27,7 +30,9 @@ export async function resolvePlugins(
       asSrc: true,
       getDepsOptimizer: () => getDepsOptimizer(config),
     }),
-    ...(isBuild ? [] : [importAnalysisPlugin(config)]),
+    ...(isBuild
+      ? []
+      : [clientInjectionsPlugin(config), importAnalysisPlugin(config)]),
   ]
 }
 

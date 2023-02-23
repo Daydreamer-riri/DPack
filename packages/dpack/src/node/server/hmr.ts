@@ -1,3 +1,4 @@
+import path from 'node:path'
 import type { Server } from 'node:http'
 import colors from 'picocolors'
 import type { Update } from 'types/hmrPayload'
@@ -21,6 +22,10 @@ export interface HmrOptions {
   server?: Server
 }
 
+export function getShortName(file: string, root: string): string {
+  return file.startsWith(root + '/') ? path.posix.relative(root, file) : file
+}
+
 export function updateModules(
   file: string,
   modules: ModuleNode[],
@@ -28,7 +33,7 @@ export function updateModules(
   server: DpackDevServer,
   afterInvalidation?: boolean,
 ): void {
-  const { config } = server
+  const { config, ws } = server
   const updates: Update[] = []
   const invalidatedModules = new Set<ModuleNode>()
   // let needFullReload = false // 暂时先做全刷新
@@ -70,9 +75,9 @@ export function updateModules(
       clear: !afterInvalidation,
       timestamp: true,
     })
-    // ws.send({
-    //   type: 'full-reload',
-    // })
+    ws.send({
+      type: 'full-reload',
+    })
     return
   }
 
@@ -86,10 +91,10 @@ export function updateModules(
       colors.dim([...new Set(updates.map((u) => u.path))].join(', ')),
     { clear: !afterInvalidation, timestamp: true },
   )
-  // ws.send({
-  //   type: 'update',
-  //   updates,
-  // })
+  ws.send({
+    type: 'update',
+    updates,
+  })
 }
 
 export async function handleFileAddUnlink(

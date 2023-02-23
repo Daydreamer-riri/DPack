@@ -25,6 +25,19 @@ const envConfig = defineConfig({
   },
 })
 
+const clientConfig = defineConfig({
+  input: path.resolve(__dirname, 'src/client/client.ts'),
+  plugins: [
+    typescript({
+      tsconfig: path.resolve(__dirname, 'src/client/tsconfig.json'),
+    }),
+  ],
+  output: {
+    file: path.resolve(__dirname, 'dist/client', 'client.mjs'),
+    sourcemap: true,
+  },
+})
+
 const sharedNodeOptions = defineConfig({
   treeshake: {
     moduleSideEffects: 'no-external',
@@ -104,7 +117,7 @@ export default (commandLineArgs: any): RollupOptions[] => {
 
   return defineConfig([
     envConfig,
-    // clientConfig,
+    clientConfig,
     createNodeConfig(isProduction),
     // createCjsConfig(isProduction),
   ])

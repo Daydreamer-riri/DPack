@@ -19,6 +19,7 @@ import {
   dataUrlRE,
   externalRE,
   isOptimizable,
+  moduleListContains,
   multilineCommentsRE,
   normalizePath,
   singlelineCommentsRE,
@@ -318,6 +319,9 @@ function esbuildScanPlugin(
       build.onResolve(
         { filter: /^[\w@][^:]/ },
         async ({ path: id, importer, pluginData }) => {
+          if (moduleListContains(exclude, id)) {
+            return externalUnlessEntry({ path: id })
+          }
           if (depImports[id]) {
             return externalUnlessEntry({ path: id })
           }

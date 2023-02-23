@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import { resolve as _resolveExports } from 'resolve.exports'
 import colors from 'picocolors'
 import type { Plugin } from '../plugin'
+import type { Alias } from 'dep-types/alias'
 import {
   CLIENT_ENTRY,
   DEFAULT_EXTENSIONS,
@@ -63,6 +64,7 @@ export interface ResolveOptions {
   extensions?: string[]
   dedupe?: string[]
   preserveSymlinks?: boolean
+  alias?: Alias[]
 }
 
 export interface InternalResolveOptions extends Required<ResolveOptions> {

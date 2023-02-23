@@ -6,6 +6,7 @@ import type {
   ResolveIdResult,
 } from 'rollup'
 import type { UserConfig } from './config'
+import type { IndexHtmlTransform } from './plugins/html'
 export type { PluginContext } from 'rollup'
 import type { ServerHook, DpackDevServer } from './server'
 
@@ -21,7 +22,10 @@ export interface Plugin extends RollupPlugin {
    * 这个hooks将在内部中间件被应用之前被调用。 hooks可以是异步函数，将被串联调用。
    */
   configureServer?: ObjectHook<ServerHook>
-  // | ((this: void, config: UserConfig, env: ConfigEnv) => boolean)
+  /**
+   * 转换 index.html
+   */
+  transformIndexHtml?: IndexHtmlTransform
   resolveId?: ObjectHook<
     (
       this: PluginContext,

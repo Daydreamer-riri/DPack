@@ -44,6 +44,7 @@
     "etag": "^1.8.1",
     "fast-glob": "^3.2.12",
     "magic-string": "^0.27.0",
+    "parse5": "^7.1.2",
     "picomatch": "^2.3.1",
     "resolve.exports": "^1.1.0",
     "types": "link:./types",

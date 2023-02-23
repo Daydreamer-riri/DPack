@@ -72,8 +72,7 @@ function throwProcessingError(id: string): never {
       `The current page should have reloaded by now`,
   )
   err.code = ERR_OPTIMIZE_DEPS_PROCESSING_ERROR
-  // This error will be caught by the transform middleware that will
-  // send a 504 status code request timeout
+  // 这个错误将被转换中间件捕获，它将发送504状态代码请求超时
   throw err
 }
 

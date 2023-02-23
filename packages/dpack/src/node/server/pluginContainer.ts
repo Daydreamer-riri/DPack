@@ -93,7 +93,7 @@ export async function createPluginContainer(
   } = config
   const { getSortedPluginHooks, getSortedPlugins } =
     createPluginHookUtils(plugins)
-  const debugSourcemapCombineFlag = 'vite:sourcemap-combine'
+  const debugSourcemapCombineFlag = 'dpack:sourcemap-combine'
   const isDebugSourcemapCombineFocused = process.env.DEBUG?.includes(
     debugSourcemapCombineFlag,
   )
@@ -122,7 +122,7 @@ export async function createPluginContainer(
         colors.yellow(
           `context method ${colors.bold(
             `${method}()`,
-          )} is not supported in serve mode. This plugin is likely not vite-compatible.`,
+          )} is not supported in serve mode. This plugin is likely not dpack-compatible.`,
         ),
     )
   }

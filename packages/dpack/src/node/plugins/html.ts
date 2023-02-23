@@ -1,13 +1,85 @@
 import type { OutputBundle, OutputChunk } from 'rollup'
+import type { DefaultTreeAdapterMap, Token } from 'parse5'
+import type { ResolvedConfig } from '..'
+import type { Plugin } from '../plugin'
 import { DpackDevServer } from '../server'
 
 const htmlProxyRE = /\?html-proxy=?(?:&inline-css)?&index=(\d+)\.(js|css)$/
 const htmlLangRE = /\.(?:html|htm)$/
 
+// const importMapRE =
+// /[ \t]*<script[^>]*type\s*=\s*(?:"importmap/
+
+// this extends the config in @vue/compiler-sfc with <link href>
+export const assetAttrsConfig: Record<string, string[]> = {
+  link: ['href'],
+  video: ['src', 'poster'],
+  source: ['src', 'srcset'],
+  img: ['src', 'srcset'],
+  image: ['xlink:href', 'href'],
+  use: ['xlink:href', 'href'],
+}
+
 export const isHTMLProxy = (id: string): boolean => htmlProxyRE.test(id)
 
 export const isHTMLRequest = (request: string): boolean =>
   htmlLangRE.test(request)
+
+export function nodeIsElement(
+  node: DefaultTreeAdapterMap['node'],
+): node is DefaultTreeAdapterMap['element'] {
+  return node.nodeName[0] !== '#'
+}
+
+function traverseNodes(
+  node: DefaultTreeAdapterMap['node'],
+  visitor: (node: DefaultTreeAdapterMap['node']) => void,
+) {
+  visitor(node)
+  if (
+    nodeIsElement(node) ||
+    node.nodeName === '#document' ||
+    node.nodeName === '#document-fragment'
+  ) {
+    node.childNodes.forEach((childNode) => traverseNodes(childNode, visitor))
+  }
+}
+
+export async function traverseHtml(
+  html: string,
+  filePath: string,
+  visitor: (node: DefaultTreeAdapterMap['node']) => void,
+) {
+  const { parse } = await import('parse5')
+  const ast = parse(html, {
+    sourceCodeLocationInfo: true,
+    onParseError: (e: any) => {
+      // handleParseError(e, html, filePath)
+    },
+  })
+  traverseNodes(ast, visitor)
+}
+
+export function getScriptInfo(node: DefaultTreeAdapterMap['element']) {
+  let src: Token.Attribute | undefined
+  let sourceCodeLocation: Token.Location | undefined
+  let isModule = false
+  let isAsync = false
+  for (const p of node.attrs) {
+    if (p.prefix !== undefined) continue
+    if (p.name === 'src') {
+      if (!src) {
+        src = p
+        sourceCodeLocation = node.sourceCodeLocation?.attrs!['src']
+      }
+    } else if (p.name === 'type' && p?.value === 'module') {
+      isModule = true
+    } else if (p.name === 'async') {
+      isAsync = true
+    }
+  }
+  return { src, sourceCodeLocation, isModule, isAsync }
+}
 
 export interface HtmlTagDescriptor {
   tag: string
@@ -47,6 +119,51 @@ export type IndexHtmlTransformHook = (
   html: string,
   ctx: IndexHtmlTransformContext,
 ) => IndexHtmlTransformResult | void | Promise<IndexHtmlTransformResult | void>
+
+export type IndexHtmlTransform =
+  | IndexHtmlTransformHook
+  | {
+      order?: 'pre' | 'post' | null
+      transform: IndexHtmlTransformHook
+    }
+  | {
+      order?: 'pre' | 'post' | null
+      handler: IndexHtmlTransformHook
+    }
+
+export function resolveHtmlTransforms(
+  plugins: readonly Plugin[],
+): [
+  IndexHtmlTransformHook[],
+  IndexHtmlTransformHook[],
+  IndexHtmlTransformHook[],
+] {
+  const preHooks: IndexHtmlTransformHook[] = []
+  const normalHooks: IndexHtmlTransformHook[] = []
+  const postHooks: IndexHtmlTransformHook[] = []
+
+  for (const plugin of plugins) {
+    const hook = plugin.transformIndexHtml
+    if (!hook) continue
+
+    if (typeof hook === 'function') {
+      normalHooks.push(hook)
+    } else {
+      const order = hook.order ?? void 0
+      // @ts-expect-error
+      const handle = hook.handler ?? hook.transform
+      if (order === 'pre') {
+        preHooks.push(handle)
+      } else if (order === 'post') {
+        postHooks.push(handle)
+      } else {
+        normalHooks.push(handle)
+      }
+    }
+  }
+
+  return [preHooks, normalHooks, postHooks]
+}
 
 export async function applyHtmlTransforms(
   html: string,
@@ -234,4 +351,8 @@ function serializeAttrs(attrs: HtmlTagDescriptor['attrs']): string {
 
 function incrementIndent(indent: string = '') {
   return `${indent}${indent[0] === '\t' ? '\t' : '  '}`
+}
+
+export function getAttrKey(attr: Token.Attribute): string {
+  return attr.prefix === undefined ? attr.name : `${attr.prefix}:${attr.name}`
 }
