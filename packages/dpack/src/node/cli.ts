@@ -5,6 +5,7 @@ import colors from 'picocolors'
 import { VERSION } from './constants'
 import { createLogger, LogLevel } from './logger'
 import { ServerOptions } from './server'
+import { bindShortcuts } from './shoutcut'
 
 const cli = cac('dpack')
 
@@ -100,14 +101,18 @@ cli
   .option('--https', `[boolean] use TLS + HTTP/2`)
   .option('--open [path]', `[boolean | string] open browser on startup`)
   .option('--cors', `[boolean] enable CORS`)
+  .option(
+    '--force',
+    `[boolean] force the optimizer to ignore the cache and re-bundle`,
+  )
   .action(async (root: string, options: ServerOptions & GlobalCLIOptions) => {
     filterDuplicateOptions(options)
-    // console.log(options)
     const { createServer } = await import('./server')
     try {
       const server = await createServer({
         root,
         base: options.base,
+        optimizeDeps: { force: options.force },
         server: cleanOptions(options),
       })
 
@@ -132,14 +137,18 @@ cli
         `\n ${colors.green(
           `${colors.bold('DPACK')} v${VERSION}`,
         )} ${startupDurationString} \n`,
-        {clear: !server.config.logger.hasWarned}
+        { clear: !server.config.logger.hasWarned },
       )
 
       server.printUrls()
+
+      bindShortcuts(server, {
+        print: true,
+      })
     } catch (e) {
       const logger = createLogger(options.logLevel)
       logger.error(colors.red(`error when starting dev server:\n${e.stack}`), {
-        error: e
+        error: e,
       })
       stopProfiler(logger.info)
       process.exit(1)
