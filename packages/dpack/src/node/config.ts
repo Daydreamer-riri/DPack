@@ -96,7 +96,6 @@ export interface UserConfig {
    * 要使用的插件阵列。
    */
   plugins?: PluginOption[]
-  // TODO:
   /**
    * 配置 resolver
    */

@@ -16,6 +16,7 @@ import {
 import {
   getShortName,
   handleFileAddUnlink,
+  handleHMRUpdate,
   HmrOptions,
   updateModules,
 } from './hmr'
@@ -50,6 +51,7 @@ import { createPluginContainer } from './pluginContainer'
 import { resolveChokidarOptions } from '../watch'
 import { invalidatePackageData } from '../packages'
 import type { InvalidatePayload } from 'types/customEvent'
+import { bindShortcuts, BindShortcutsOptions } from '../shoutcut'
 
 export interface ServerOptions extends CommonServerOptions {
   /**
@@ -230,11 +232,6 @@ export interface DpackDevServer {
    * @internal
    */
   _importGlobMap: Map<string, string[][]>
-  // /**
-  //  * Deps that are externalized
-  //  * @internal
-  //  */
-  // _ssrExternals: string[] | null
   /**
    * @internal
    */
@@ -258,6 +255,7 @@ export interface DpackDevServer {
    * @internal
    */
   // _fsDenyGlob: Matcher
+  _shortcutsOptions?: any
 }
 
 export interface ResolvedServerUrls {
@@ -419,7 +417,7 @@ export async function createServer(
     moduleGraph.onFileChange(file)
     if (serverConfig.hmr !== false) {
       try {
-        // await handleHMRUpdate(file, server) // TODO:HMR
+        await handleHMRUpdate(file, server)
       } catch (e) {
         // ws.send({
         //   type: 'error',
@@ -455,6 +453,12 @@ export async function createServer(
       )
     }
   })
+
+  if (!middlewareMode && httpServer) {
+    httpServer.once('listening', () => {
+      serverConfig.port = (httpServer.address() as net.AddressInfo).port
+    })
+  }
 
   const postHooks: ((() => void) | void)[] = []
   for (const hook of config.getSortedPluginHooks('configureServer')) {
@@ -574,7 +578,7 @@ function createServerCloseFn(server: http.Server | null) {
 async function restartServer(server: DpackDevServer) {
   global.__dpack_start_time = performance.now()
   const { port: prevPort, host: prevHost } = server.config.server
-  // const shortcutsOptions: BindShortcutsOptions = server._shortcutsOptions
+  const shortcutsOptions: BindShortcutsOptions = server._shortcutsOptions
 
   await server.close()
 
@@ -611,16 +615,16 @@ async function restartServer(server: DpackDevServer) {
     logger?.info('server restarted.', { timestamp: true })
     if ((port ?? 3002) !== (prevPort ?? 3002) || host !== prevHost) {
       logger?.info('')
-      // server.printUrls()
+      server.printUrls()
     }
   } else {
     logger?.info('server restarted.', { timestamp: true })
   }
 
-  // if (shortcutsOptions) {
-  //   shortcutsOptions.print = false
-  //   bindShortcuts(newServer, shortcutsOptions)
-  // }
+  if (shortcutsOptions) {
+    shortcutsOptions.print = false
+    bindShortcuts(newServer, shortcutsOptions)
+  }
 
   // new server (the current server) can restart now
   newServer._restartPromise = null

@@ -1,4 +1,5 @@
 import path from 'node:path'
+import fs from 'node:fs'
 import type { Server } from 'node:http'
 import colors from 'picocolors'
 import type { Update } from 'types/hmrPayload'
@@ -6,10 +7,13 @@ import type { DpackDevServer } from '.'
 import { isCSSRequest } from '../plugins/css'
 import { isExplicitImportRequired } from '../plugins/importAnalysis'
 import { getAffectedGlobModules } from '../plugins/importMetaGlob'
-import { createDebugger, wrapId } from '../utils'
+import { createDebugger, normalizePath, wrapId } from '../utils'
 import type { ModuleNode } from './moduleGraph'
+import { CLIENT_DIR } from '../constants'
 
 export const debugHmr = createDebugger('dpack:hmr')
+
+const normalizedClientDir = normalizePath(CLIENT_DIR)
 
 export interface HmrOptions {
   protocol?: string
@@ -22,8 +26,91 @@ export interface HmrOptions {
   server?: Server
 }
 
+export interface HmrContext {
+  file: string
+  timestamp: number
+  modules: Array<ModuleNode>
+  read: () => string | Promise<string>
+  server: DpackDevServer
+}
+
 export function getShortName(file: string, root: string): string {
   return file.startsWith(root + '/') ? path.posix.relative(root, file) : file
+}
+
+export async function handleHMRUpdate(file: string, server: DpackDevServer) {
+  const { ws, config, moduleGraph } = server
+  const shortFile = getShortName(file, config.root)
+
+  const isConfig = file === config.configFile
+  const isConfigDependency = config.configFileDependencies.some(
+    (name) => file === name,
+  )
+  if (isConfig || isConfigDependency) {
+    debugHmr(`[config change] ${colors.dim(shortFile)}`)
+    config.logger.info(
+      colors.green(
+        `${path.relative(process.cwd(), file)} changed, restarting server...`,
+      ),
+      { clear: true, timestamp: true },
+    )
+    try {
+      await server.restart()
+    } catch (e) {
+      config.logger.error(colors.red(e))
+    }
+    return
+  }
+
+  config.logger.info(`[file change] ${colors.dim(shortFile)}`)
+
+  if (file.startsWith(normalizedClientDir)) {
+    ws.send({
+      type: 'full-reload',
+      path: '*',
+    })
+    return
+  }
+
+  const mods = moduleGraph.getModulesByFile(file)
+
+  const timestamp = Date.now()
+  const hmrContext: HmrContext = {
+    file,
+    timestamp,
+    modules: mods ? [...mods] : [],
+    read: () => readModifiedFile(file),
+    server,
+  }
+
+  // for (const hook of config.getSortedPluginHooks('handleHotUpdate')) {
+  //   const filteredModules = await hook(hmrContext)
+  //   if (filteredModules) {
+  //     hmrContext.modules = filteredModules
+  //   }
+  // }
+
+  if (!hmrContext.modules.length) {
+    // html文件不能被热更新
+    if (file.endsWith('.html')) {
+      config.logger.info(colors.green(`page reload `) + colors.dim(shortFile), {
+        clear: true,
+        timestamp: true,
+      })
+      ws.send({
+        type: 'full-reload',
+        path: config.server.middlewareMode
+          ? '*'
+          : '/' + normalizePath(path.relative(config.root, file)),
+      })
+    } else {
+      // 已加载但不在模块图中，可能不是js
+      debugHmr(`[no modules matched] ${colors.dim(shortFile)}`)
+    }
+    return
+  }
+
+  updateModules(shortFile, hmrContext.modules, timestamp, server)
 }
 
 export function updateModules(
@@ -183,4 +270,27 @@ export function normalizeHmrUrl(url: string) {
     url = wrapId(url)
   }
   return url
+}
+
+async function readModifiedFile(file: string) {
+  const content = fs.readFileSync(file, 'utf-8')
+  if (!content) {
+    const mtime = fs.statSync(file).mtimeMs
+    await new Promise((r) => {
+      let n = 0
+      const poll = async () => {
+        n++
+        const newMtime = fs.statSync(file).mtimeMs
+        if (newMtime !== mtime || n > 10) {
+          r(0)
+        } else {
+          setTimeout(poll, 10)
+        }
+      }
+      setTimeout(poll, 10)
+    })
+    return fs.readFileSync(file, 'utf-8')
+  } else {
+    return content
+  }
 }

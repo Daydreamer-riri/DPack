@@ -136,6 +136,7 @@ export interface DepOptimizationConfig {
     | 'metafile'
   >
   disabled?: boolean | 'build' | 'dev'
+  force?: boolean
 }
 
 export type DepOptimizationOptions = DepOptimizationConfig
@@ -373,7 +374,7 @@ export function optimizedDepInfoFromFile(
  */
 export function loadCachedDepOptimizationMetadata(
   config: ResolvedConfig,
-  force = false,
+  force = config.optimizeDeps.force,
   asCommand = false,
 ): DepOptimizationMetadata | undefined {
   const log = asCommand ? config.logger.info : debug
