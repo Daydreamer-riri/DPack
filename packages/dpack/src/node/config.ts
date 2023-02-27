@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url'
 import { performance } from 'node:perf_hooks'
 import { build } from 'esbuild'
 import colors from 'picocolors'
+import aliasPlugin from '@rollup/plugin-alias'
 import { createLogger, Logger, LogLevel } from './logger'
 import type { HookHandler, Plugin } from './plugin'
 import type { ESBuildOptions } from './plugins/esbuild'
@@ -57,6 +58,10 @@ export type AppType = 'spa' | 'mpa' | 'custom'
 
 export type UserConfigFn = (env: ConfigEnv) => UserConfig | Promise<UserConfig>
 export type UserConfigExport = UserConfig | Promise<UserConfig> | UserConfigFn
+
+export function defineConfig(config: UserConfigExport): UserConfigExport {
+  return config
+}
 
 export type PluginOption =
   | Plugin
@@ -245,8 +250,13 @@ export async function resolveConfig(
     }
   }
 
-  // plugin 相关 TODO:
-  // ..........
+  // plugin 相关
+  const rawUserPlugins = ((config.plugins || []) as Plugin[]).filter(
+    filterPlugin,
+  )
+
+  const [prePlugins, normalPlugins, postPlugins] =
+    sortUserPlugins(rawUserPlugins)
 
   // 定义 logger
   const logger = createLogger(config.logLevel, {
@@ -321,7 +331,7 @@ export async function resolveConfig(
           aliasContainer ||
           (aliasContainer = await createPluginContainer({
             ...resolved,
-            // plugins: [aliasPlugin({ entries: resolved.resolve.alias })],
+            plugins: [aliasPlugin({ entries: resolved.resolve.alias })],
           }))
       } else {
         container =
@@ -329,7 +339,7 @@ export async function resolveConfig(
           (resolverContainer = await createPluginContainer({
             ...resolved,
             plugins: [
-              // aliasPlugin({ entries: resolved.resolve.alias }),
+              aliasPlugin({ entries: resolved.resolve.alias }),
               resolvePlugin({
                 ...resolved.resolve,
                 root: resolvedRoot,
@@ -415,7 +425,12 @@ export async function resolveConfig(
     ...resolvedConfig,
   }
 
-  ;(resolved.plugins as Plugin[]) = await resolvePlugins(resolved)
+  ;(resolved.plugins as Plugin[]) = await resolvePlugins(
+    resolved,
+    prePlugins,
+    normalPlugins,
+    postPlugins,
+  )
   Object.assign(resolved, createPluginHookUtils(resolved.plugins))
 
   await Promise.all([
@@ -585,4 +600,22 @@ export function isDepsOptimizerEnabled(config: ResolvedConfig): boolean {
     (command === 'build' && disabled === 'build') ||
     (command === 'serve' && disabled === 'dev')
   )
+}
+
+export function sortUserPlugins(
+  plugins: (Plugin | Plugin[])[] | undefined,
+): [Plugin[], Plugin[], Plugin[]] {
+  const prePlugins: Plugin[] = []
+  const postPlugins: Plugin[] = []
+  const normalPlugins: Plugin[] = []
+
+  if (plugins) {
+    plugins.flat().forEach((p) => {
+      if (p.enforce === 'pre') prePlugins.push(p)
+      else if (p.enforce === 'post') postPlugins.push(p)
+      else normalPlugins.push(p)
+    })
+  }
+
+  return [prePlugins, normalPlugins, postPlugins]
 }

@@ -12,15 +12,16 @@ import { clientInjectionsPlugin } from './clientInjections'
 
 export async function resolvePlugins(
   config: ResolvedConfig,
-  // prePlugins: Plugin[],
-  // normalPlugins: Plugin[],
-  // postPlugins: Plugin[],
+  prePlugins: Plugin[],
+  normalPlugins: Plugin[],
+  postPlugins: Plugin[],
 ): Promise<Plugin[]> {
   const isBuild = config.command === 'build'
 
   return [
     preAliasPlugin(config),
     aliasPlugin({ entries: config.resolve.alias }),
+    ...prePlugins,
     ...(isBuild ? [] : [optimizedDepsPlugin(config)]),
     resolvePlugin({
       ...config.resolve,
@@ -32,6 +33,8 @@ export async function resolvePlugins(
       getDepsOptimizer: () => getDepsOptimizer(config),
     }),
     config.esbuild !== false ? esbuildPlugin(config.esbuild) : null,
+    ...normalPlugins,
+    ...postPlugins,
     ...(isBuild
       ? []
       : [clientInjectionsPlugin(config), importAnalysisPlugin(config)]),

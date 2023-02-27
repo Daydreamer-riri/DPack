@@ -11,6 +11,7 @@ export type { PluginContext } from 'rollup'
 import type { ServerHook, DpackDevServer } from './server'
 
 export interface Plugin extends RollupPlugin {
+  enforce?: 'pre' | 'post'
   /**
    * 只在服务或构建，或在某些条件下应用该插件。
    */
