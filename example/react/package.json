@@ -1,0 +1,15 @@
+{
+  "name": "@dpack/test-react",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "dpack"
+  },
+  "dependencies": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@dpack/dpack": "^0.0.1"
+  }
+}
