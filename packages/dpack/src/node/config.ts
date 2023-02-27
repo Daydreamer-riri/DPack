@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { performance } from 'node:perf_hooks'
-import { createRequire } from 'node:module'
+import { build } from 'esbuild'
 import colors from 'picocolors'
 import { createLogger, Logger, LogLevel } from './logger'
 import type { HookHandler, Plugin } from './plugin'
@@ -216,7 +216,18 @@ export async function resolveConfig(
 
   let { configFile } = config
   if (configFile !== false) {
-    // const loadResult = await
+    const loadResult = await loadConfigFromFile(
+      configEnv,
+      configFile,
+      config.root,
+      config.logLevel,
+    )
+
+    if (loadResult) {
+      config = mergeConfig(loadResult.config, config)
+      configFile = loadResult.path
+      configFileDependencies = loadResult.dependencies
+    }
   }
 
   mode = inlineConfig.mode || config.mode || mode
@@ -407,6 +418,12 @@ export async function resolveConfig(
   ;(resolved.plugins as Plugin[]) = await resolvePlugins(resolved)
   Object.assign(resolved, createPluginHookUtils(resolved.plugins))
 
+  await Promise.all([
+    ...resolved
+      .getSortedPluginHooks('configResolved')
+      .map((hook) => hook(resolved)),
+  ])
+
   return resolved
 }
 
@@ -482,7 +499,6 @@ export async function loadConfigFromFile(
     const userConfig = await loadConfigFromBundledFile(
       resolvedPath,
       bundled.code,
-      isESM,
     )
     debug(`bundled config file loaded in ${getTime()}`)
 
@@ -506,12 +522,56 @@ export async function loadConfigFromFile(
   }
 }
 
-function bundleConfigFile(resolvedPath: string, isESM: boolean): any {
-  throw new Error('Function not implemented.')
+async function bundleConfigFile(
+  fileName: string,
+  isESM: boolean = true,
+): Promise<{ code: string; dependencies: string[] }> {
+  const dirnameVarName = '__dpack_injected_original_dirname'
+  const filenameVarName = '__dpack_injected_original_filename'
+  const importMetaUrlVarName = '__dpack_injected_original_import_meta_url'
+  const result = await build({
+    absWorkingDir: process.cwd(),
+    entryPoints: [fileName],
+    outfile: 'out.js',
+    write: false,
+    target: ['node14.18', 'node16'],
+    platform: 'node',
+    bundle: true,
+    format: isESM ? 'esm' : 'cjs',
+    mainFields: ['main'],
+    sourcemap: 'inline',
+    metafile: true,
+    define: {
+      __dirname: dirnameVarName,
+      __filename: filenameVarName,
+      'import.meta.url': importMetaUrlVarName,
+    },
+  })
+  const { text } = result.outputFiles[0]
+  return {
+    code: text,
+    dependencies: result.metafile ? Object.keys(result.metafile.inputs) : [],
+  }
 }
 
-function loadConfigFromBundledFile(a: string, b: string, c: boolean): any {}
-
+async function loadConfigFromBundledFile(
+  fileName: string,
+  bundledCode: string,
+): Promise<UserConfigExport> {
+  const fileBase = `${fileName}.timestamp-${Date.now()}`
+  const fileNameTmp = `${fileBase}.mjs`
+  const fileUrl = `${pathToFileURL(fileBase)}.mjs`
+  fs.writeFileSync(fileNameTmp, bundledCode)
+  try {
+    return (await import(fileUrl)).default
+  } finally {
+    try {
+      fs.unlinkSync(fileNameTmp)
+    } catch {
+      // already removed if this function is called twice simultaneously
+    }
+  }
+}
 export function getDepOptimizationConfig(
   config: ResolvedConfig,
 ): DepOptimizationConfig {

@@ -5,6 +5,7 @@ import { importAnalysisPlugin } from './importAnalysis'
 import { resolvePlugin } from './resolve'
 import { loadFallbackPlugin } from './loadFallback'
 import { getDepsOptimizer } from '../optimizer'
+import { esbuildPlugin } from './esbuild'
 import { optimizedDepsPlugin } from './optimizedDeps'
 import { preAliasPlugin } from './preAlias'
 import { clientInjectionsPlugin } from './clientInjections'
@@ -30,10 +31,11 @@ export async function resolvePlugins(
       asSrc: true,
       getDepsOptimizer: () => getDepsOptimizer(config),
     }),
+    config.esbuild !== false ? esbuildPlugin(config.esbuild) : null,
     ...(isBuild
       ? []
       : [clientInjectionsPlugin(config), importAnalysisPlugin(config)]),
-  ]
+  ].filter(Boolean) as Plugin[]
 }
 
 export function createPluginHookUtils(

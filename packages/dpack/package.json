@@ -21,6 +21,7 @@
     "resolve": "1.22.1"
   },
   "devDependencies": {
+    "@ampproject/remapping": "^2.2.0",
     "@rollup/plugin-alias": "^4.0.2",
     "@rollup/plugin-commonjs": "^24.0.0",
     "@rollup/plugin-dynamic-import-vars": "^2.0.1",
@@ -47,6 +48,7 @@
     "parse5": "^7.1.2",
     "picomatch": "^2.3.1",
     "resolve.exports": "^1.1.0",
+    "tsconfck": "^2.0.3",
     "types": "link:./types",
     "ws": "^8.12.0"
   },
