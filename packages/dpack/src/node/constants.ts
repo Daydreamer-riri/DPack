@@ -120,4 +120,8 @@ export const wildcardHosts = new Set([
   '0000:0000:0000:0000:0000:0000:0000:0000',
 ])
 
+export const DEFAULT_ASSETS_RE = new RegExp(
+  `\\.(` + KNOWN_ASSET_TYPES.join('|') + `)(\\?.*)?$`,
+)
+
 export const DEP_VERSION_RE = /[?&](v=[\w.-]+)\b/

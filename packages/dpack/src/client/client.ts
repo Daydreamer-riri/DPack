@@ -177,3 +177,43 @@ type CustomListenersMap = Map<string, ((data: any) => void)[]>
 const pruneMap = new Map<string, (data: any) => void | Promise<void>>()
 const dataMap = new Map<string, any>()
 const customListenersMap: CustomListenersMap = new Map()
+
+const sheetsMap = new Map<
+  string,
+  HTMLStyleElement | CSSStyleSheet | undefined
+>()
+
+export function updateStyle(id: string, content: string): void {
+  let style = sheetsMap.get(id)
+
+  if (style && !(style instanceof HTMLStyleElement)) {
+    removeStyle(id)
+    style = undefined
+  }
+
+  if (!style) {
+    style = document.createElement('style')
+    style.setAttribute('type', 'text/css')
+    style.setAttribute('data-dpack-dev-id', id)
+    style.textContent = content
+    document.head.appendChild(style)
+  } else {
+    style.textContent = content
+  }
+
+  sheetsMap.set(id, style)
+}
+
+export function removeStyle(id: string): void {
+  const style = sheetsMap.get(id)
+  if (style) {
+    if (style instanceof CSSStyleSheet) {
+      document.adoptedStyleSheets = document.adoptedStyleSheets.filter(
+        (s: CSSStyleSheet) => s !== style,
+      )
+    } else {
+      document.head.removeChild(style)
+    }
+    sheetsMap.delete(id)
+  }
+}

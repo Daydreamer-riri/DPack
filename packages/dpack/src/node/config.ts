@@ -16,6 +16,7 @@ import {
 } from './server'
 import {
   CLIENT_ENTRY,
+  DEFAULT_ASSETS_RE,
   DEFAULT_CONFIG_FILES,
   DEFAULT_EXTENSIONS,
   DEFAULT_MAIN_FIELDS,
@@ -182,7 +183,7 @@ export type ResolvedConfig = Readonly<
     packageCache: PackageCache
     // preview: ResolvedPreviewOptions
     // ssr: ResolvedSSROptions
-    // assetsInclude: (file: string) => boolean
+    assetsInclude: (file: string) => boolean
   } & PluginHookUtils
 >
 
@@ -404,6 +405,9 @@ export async function resolveConfig(
     plugins: [],
     server,
     build: resolvedBuildOptions,
+    assetsInclude(file: string) {
+      return DEFAULT_ASSETS_RE.test(file) || assetsFilter(file)
+    },
     logger,
     createResolver,
     packageCache: new Map(),

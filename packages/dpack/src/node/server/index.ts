@@ -43,6 +43,7 @@ import {
 import { Logger, printServerUrls } from '../logger'
 import { searchForPackageRoot } from './searchRoot'
 import colors from 'picocolors'
+import { serverStaticMiddleware } from './middlewares/static'
 import { htmlFallbackMiddleware } from './middlewares/htmlFallback'
 import { transformMiddleware } from './middlewares/transform'
 import { getDepsOptimizer, initDepsOptimizer } from '../optimizer'
@@ -467,7 +468,10 @@ export async function createServer(
 
   // Internal middlewares ----------------------------------------------
 
+  // main transform middleware
   middlewares.use(transformMiddleware(server))
+
+  middlewares.use(serverStaticMiddleware(root, server))
 
   // html fallback
   if (config.appType === 'spa' || config.appType === 'mpa') {

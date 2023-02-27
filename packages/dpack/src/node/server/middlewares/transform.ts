@@ -33,7 +33,6 @@ export function transformMiddleware(
 ): Connect.NextHandleFunction {
   const { config, moduleGraph } = server
   const { root, logger } = config
-  const importAnalysis = importAnalysisPlugin(config)
   return async function dpackTransformMiddleware(req, res, next) {
     if (req.method !== 'GET' || knownIgnoreList.has(req.url!)) {
       return next()

@@ -41,7 +41,7 @@ export function bindShortcuts(
     // ctrl+c or ctrl+d
     if (input === '\x03' || input === '\x04') {
       process.stdin.setRawMode(false)
-      process.stdin.write(input)
+      // process.stdin.write(input)
       return
     }
 

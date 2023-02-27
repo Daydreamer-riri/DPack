@@ -9,6 +9,8 @@ import { esbuildPlugin } from './esbuild'
 import { optimizedDepsPlugin } from './optimizedDeps'
 import { preAliasPlugin } from './preAlias'
 import { clientInjectionsPlugin } from './clientInjections'
+import { cssPlugin, cssPostPlugin } from './css'
+import { assetPlugin } from './asset'
 
 export async function resolvePlugins(
   config: ResolvedConfig,
@@ -32,8 +34,11 @@ export async function resolvePlugins(
       asSrc: true,
       getDepsOptimizer: () => getDepsOptimizer(config),
     }),
+    cssPlugin(config),
     config.esbuild !== false ? esbuildPlugin(config.esbuild) : null,
+    assetPlugin(config),
     ...normalPlugins,
+    cssPostPlugin(config),
     ...postPlugins,
     ...(isBuild
       ? []

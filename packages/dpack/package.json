@@ -48,6 +48,7 @@
     "parse5": "^7.1.2",
     "picomatch": "^2.3.1",
     "resolve.exports": "^1.1.0",
+    "sirv": "^2.0.2",
     "tsconfck": "^2.0.3",
     "types": "link:./types",
     "ws": "^8.12.0"
