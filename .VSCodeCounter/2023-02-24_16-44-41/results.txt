@@ -1,0 +1,89 @@
+Date : 2023-02-24 16:44:41
+Directory : d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src
+Total : 54 files,  8147 codes, 1673 comments, 1167 blanks, all 10987 lines
+
+Languages
++--------------------+------------+------------+------------+------------+------------+
+| language           | files      | code       | comment    | blank      | total      |
++--------------------+------------+------------+------------+------------+------------+
+| TypeScript         |         51 |      8,126 |      1,673 |      1,164 |     10,963 |
+| JSON with Comments |          2 |         18 |          0 |          2 |         20 |
+| JSON               |          1 |          3 |          0 |          1 |          4 |
++--------------------+------------+------------+------------+------------+------------+
+
+Directories
++----------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                               | files      | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                  |         54 |      8,147 |      1,673 |      1,167 |     10,987 |
+| client                                                                                             |          3 |        183 |          6 |         32 |        221 |
+| node                                                                                               |         43 |      7,192 |      1,307 |      1,012 |      9,511 |
+| node (Files)                                                                                       |         13 |      1,750 |        234 |        249 |      2,233 |
+| node\optimizer                                                                                     |          4 |      1,589 |        336 |        228 |      2,153 |
+| node\plugins                                                                                       |         12 |      1,777 |        467 |        253 |      2,497 |
+| node\server                                                                                        |         14 |      2,076 |        270 |        282 |      2,628 |
+| node\server (Files)                                                                                |          8 |      1,661 |        246 |        228 |      2,135 |
+| node\server\middlewares                                                                            |          6 |        415 |         24 |         54 |        493 |
+| types                                                                                              |          8 |        772 |        360 |        123 |      1,255 |
++----------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++----------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
+| filename                                                                                           | language           | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\client\client.ts                        | TypeScript         |        147 |          5 |         28 |        180 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\client\env.ts                           | TypeScript         |         26 |          1 |          3 |         30 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\client\tsconfig.json                    | JSON with Comments |         10 |          0 |          1 |         11 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\build.ts                           | TypeScript         |         53 |         50 |         10 |        113 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\cli.ts                             | TypeScript         |        143 |          1 |         18 |        162 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\config.ts                          | TypeScript         |        390 |         86 |         53 |        529 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\constants.ts                       | TypeScript         |         91 |         11 |         22 |        124 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\http.ts                            | TypeScript         |        105 |          1 |         15 |        121 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\index.ts                           | TypeScript         |          4 |          0 |          3 |          7 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\logger.ts                          | TypeScript         |        134 |          0 |         15 |        149 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\optimizer\esbuildDepPlugin.ts      | TypeScript         |        229 |         14 |         23 |        266 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\optimizer\index.ts                 | TypeScript         |        618 |         87 |         86 |        791 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\optimizer\opimizer.ts              | TypeScript         |        526 |         43 |         91 |        660 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\optimizer\scan.ts                  | TypeScript         |        216 |        192 |         28 |        436 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\packages.ts                        | TypeScript         |        113 |          2 |         10 |        125 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\plugin.ts                          | TypeScript         |         30 |         15 |          3 |         48 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\plugins\asset.ts                   | TypeScript         |         21 |          3 |          2 |         26 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\plugins\clientInjections.ts        | TypeScript         |         67 |          0 |         11 |         78 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\plugins\css.ts                     | TypeScript         |          8 |          0 |          5 |         13 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\plugins\esbuild.ts                 | TypeScript         |          6 |        137 |         14 |        157 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\plugins\html.ts                    | TypeScript         |        297 |         24 |         38 |        359 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\plugins\importAnalysis.ts          | TypeScript         |        411 |        119 |         62 |        592 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\plugins\importMetaGlob.ts          | TypeScript         |         17 |          0 |          2 |         19 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\plugins\index.ts                   | TypeScript         |         83 |          6 |          6 |         95 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\plugins\loadFallback.ts            | TypeScript         |         15 |          3 |          2 |         20 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\plugins\optimizedDeps.ts           | TypeScript         |         73 |          5 |         10 |         88 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\plugins\preAlias.ts                | TypeScript         |         94 |          7 |          5 |        106 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\plugins\resolve.ts                 | TypeScript         |        685 |        163 |         96 |        944 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\server\hmr.ts                      | TypeScript         |        250 |         12 |         35 |        297 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\server\index.ts                    | TypeScript         |        445 |        168 |         63 |        676 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\server\middlewares\error.ts        | TypeScript         |         21 |          0 |          3 |         24 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\server\middlewares\htmlFallback.ts | TypeScript         |         30 |          2 |          5 |         37 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\server\middlewares\indexHtml.ts    | TypeScript         |        209 |          3 |         27 |        239 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\server\middlewares\proxy.ts        | TypeScript         |         11 |          9 |          2 |         22 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\server\middlewares\static.ts       | TypeScript         |          0 |          0 |          1 |          1 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\server\middlewares\transform.ts    | TypeScript         |        144 |         10 |         16 |        170 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\server\moduleGraph.ts              | TypeScript         |        119 |          2 |         14 |        135 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\server\pluginContainer.ts          | TypeScript         |        399 |         18 |         48 |        465 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\server\searchRoot.ts               | TypeScript         |         30 |          9 |          9 |         48 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\server\send.ts                     | TypeScript         |         50 |          6 |         10 |         66 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\server\transformRequest.ts         | TypeScript         |        147 |          7 |         29 |        183 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\server\ws.ts                       | TypeScript         |        221 |         24 |         20 |        265 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\shoutcut.ts                        | TypeScript         |         89 |         13 |         18 |        120 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\tsconfig.json                      | JSON with Comments |          8 |          0 |          1 |          9 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\utils.ts                           | TypeScript         |        577 |         44 |         79 |        700 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\node\watch.ts                           | TypeScript         |         13 |         11 |          2 |         26 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\types\alias.d.ts                        | TypeScript         |         13 |         42 |          7 |         62 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\types\anymatch.d.ts                     | TypeScript         |          4 |          0 |          2 |          6 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\types\chokidar.d.ts                     | TypeScript         |         58 |        137 |         35 |        230 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\types\connect.d.ts                      | TypeScript         |         54 |         45 |         13 |        112 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\types\http-proxy.d.ts                   | TypeScript         |        156 |         76 |         19 |        251 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\types\package.json                      | JSON               |          3 |          0 |          1 |          4 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\types\shims.d.ts                        | TypeScript         |          4 |          0 |          2 |          6 |
+| d:\Users\ding.zhao\Code\MyProject\DPack\packages\dpack\src\types\ws.d.ts                           | TypeScript         |        480 |         60 |         44 |        584 |
+| Total                                                                                              |                    |      8,147 |      1,673 |      1,167 |     10,987 |
++----------------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
