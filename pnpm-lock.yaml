@@ -98,6 +98,17 @@ importers:
     devDependencies:
       '@dpack/dpack': link:../../packages/dpack
 
+  example/react-ts:
+    specifiers:
+      '@dpack/dpack': ^0.0.1
+      react: 18.2.0
+      react-dom: 18.2.0
+    dependencies:
+      react: 18.2.0
+      react-dom: 18.2.0_react@18.2.0
+    devDependencies:
+      '@dpack/dpack': link:../../packages/dpack
+
   packages/dpack:
     specifiers:
       '@ampproject/remapping': ^2.2.0
